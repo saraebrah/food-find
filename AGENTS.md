@@ -1,27 +1,46 @@
-I want you to organize this and make it readbale and usable. I'm writing whatever comes to my head.
-I want you to list the features in order of it's difficulty and precedence in terms of development.
-Ideally i want to build a mobile app, but for now i decided to first bulid the website and later after reconsideration invest in buliding the mobile app.
-I want to bulid it sequesntionally and in iterations. Let us also do it in iteration. maybe first, tell me 
-1. if there is already such a service out there
-2. if the answer to 1 is yes, what can be my competetive advantage?
-3. Is there anything you think I should add to the features?
-I also want to give it a name, a palceholder maybe so that it is eaier to refer to it.
-I think it needs a lot of APIs and maybe screen scraping. Accessing place's website, if any, finding the menu from it, or if it doesnt have a website, using the public pictures of the menu from google as the proxy for menu. 
-It needs a UI but that is not my focus right now, I am okay to sacrifice prettiness of the website to its usability and features. 
+## Project context
 
+This repository contains the website described in `docs/prd.md`.
 
-I want to create a product that looks at the location that is provided by the user, either current location or a picked location, in addition to a search radius. 
-I want it to list all places where the user can go get food. 
-I want it to provide the following filtering:
-- type of the place, if a resturant, if aa cafe, if a bar, ...
-- if it's only takeout or both takeout and dine in
-- type of the cusine, tai, persion, indian, italian
-- if they offere common foods in their menue, like pizza, burger, steak, pasta, ...
-- the range of the spending per person, can use the one that google provides, or directly looking at the menue and calculate it based on a formula
-When user click on an aoption, they would be able to:
-- visit the place's website, if there is a website for i
-- call directly to reserve a table or leave your info, like how many ppl at what time, then AI agent would call and reserve the table on behalf of the user 
-- click a button to get the direction from the google map, like the user would be directed to google maps and will be able to check the distance by public transport, car, or foot
-I want it to let the user sort based on 
-- distance
-- rating (maybe from google, or uber eats)
+Before making product or implementation decisions, read:
+
+- `docs/prd.md` for product requirements
+- `docs/roadmap.md` for build order and priorities
+- `docs/features.md` for feature-level behavior and acceptance criteria
+- `docs/decisions.md` for previous decisions and rationale
+
+## Working rules
+
+- Do not invent requirements that are not documented.
+- If something is unclear, make a reasonable assumption and record it in `docs/decisions.md`.
+- Keep `docs/roadmap.md` updated when implementation order changes.
+- Update documentation when product behavior, roadmap order, or technical decisions change.
+- Prefer small, focused, and reviewable commits.
+- Run the relevant lint/test/build commands before considering work done.
+
+## Documentation rules
+
+- Update `docs/roadmap.md` when task status or priority changes.
+- Update `docs/features.md` when feature behavior, edge cases, or acceptance criteria change.
+- Update `docs/decisions.md` when an important product, design, or technical decision is made.
+- Do not treat chat history as the source of truth; the repo docs are the source of truth.
+
+## Before coding
+
+For any non-trivial feature:
+
+1. Read the relevant docs.
+2. Propose a short implementation plan.
+3. Identify files that will likely change.
+4. Confirm assumptions in `docs/decisions.md` if needed.
+
+## Definition of done
+
+A task is done when:
+
+- The implementation matches the documented requirements.
+- Relevant docs are updated.
+- The app runs locally.
+- The code is committed on a feature branch.
+- Tests, linting, or build checks pass if available.
+- Known limitations or follow-up tasks are documented.
