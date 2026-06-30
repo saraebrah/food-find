@@ -1,6 +1,6 @@
 # FoodFind Product Requirements Document
 
-This document defines what FoodFind is, who it serves, what the MVP must deliver, and how success will be evaluated.
+This document defines what FoodFind is, who it serves, and what the first version should do.
 
 ## Product overview
 
@@ -35,8 +35,8 @@ Example requests:
 
 ### Search
 
-- Current location or selcted location
-- mAP
+- Current or selected location
+- Map
 - The search box must accept short keywords, such as `Thai food`.
 - The search box must accept natural-language requests, such as `Persian restaurants within three kilometres that are open now`.
 - The interpreted request must be represented as visible, editable filters.
@@ -74,12 +74,12 @@ Users must be able to open the business website, initiate a call on supported de
 
 ### Data
 
-- Use an approved place-data provider instead of scraping Google or other platforms.
+- Use a place-data provider instead of scraping Google or other platforms.
 - Label ratings with their source and do not merge ratings from different platforms into one score.
 - Obtain future menu data only from restaurant-owned, licensed, or directly submitted sources.
 - Retain the source and last-checked time for menu data.
 
-Before selecting a provider, compare coverage, accuracy, licensing, limits, and cost against a manually prepared list of businesses in one small Toronto test area.
+Start with one provider API, retrieve real results for a Toronto location, and replace or supplement it only if its data proves insufficient.
 
 ## Not included in the MVP
 
@@ -93,9 +93,9 @@ Before selecting a provider, compare coverage, accuracy, licensing, limits, and 
 - Food ordering or payment
 - Per-person spending calculations
 
-## MVP acceptance criteria
+## First-version acceptance criteria
 
-The MVP is ready for user testing when:
+The first version is working when:
 
 1. Users can search from a current or selected location within a chosen radius.
 2. Supported typed criteria appear as editable controls.
@@ -171,4 +171,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Select a small Toronto test area, prepare a reference list of food businesses, and compare approved place-data providers. Use the findings to choose the provider and finalize MVP screens, supported filters, and measurable targets.
+Call one place-data API for a fixed Toronto location and display the returned food businesses in a basic list.
