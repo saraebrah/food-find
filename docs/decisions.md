@@ -66,3 +66,25 @@ Provider content should only be copied into the base record when that provider p
 - Overture distributes downloadable place data under source-specific open licences and attribution requirements: [Overture attribution and licensing](https://docs.overturemaps.org/attribution/).
 
 These examples can change. Check the selected provider's current storage and display rules when implementing its adapter.
+
+## Initial place-data provider
+
+- **Date:** 2026-07-04
+- **Status:** Current approach
+
+### Decision
+
+FoodFind will use Google Places as its first place-data provider.
+
+The integration must follow these safeguards:
+
+- Automated tests use mocked Google responses and never call the live API.
+- Page loads use one explicit search operation and must not create request loops.
+- The Google API key remains in a server-only environment variable and is never included in browser code or responses.
+- A low daily request quota must be configured in Google Cloud before live development calls begin.
+
+The quota is configured in Google Cloud, not in this repository. Live Google integration remains blocked until that setup is confirmed.
+
+### Rationale
+
+Google Places supplies the basic place fields needed for the first version, and expected development usage should remain within its monthly free allowance. The existing provider interface decision keeps the application replaceable if that changes.
