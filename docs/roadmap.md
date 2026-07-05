@@ -13,13 +13,13 @@ Priority levels:
 ## Phase 1 — First real results
 
 - **Priority:** P0
-- **Status:** Not started
+- **Status:** In progress
 
-1. Create the basic web application.
-2. Connect one place-data provider.
-3. Search using a fixed Toronto location and radius.
-4. Normalize the provider response into FoodFind's place format.
-5. Display results in a simple list.
+- [x] Create the basic web application.
+- [ ] Connect one place-data provider.
+- [ ] Search using a fixed Toronto location and radius.
+- [ ] Normalize the provider response into FoodFind's place format.
+- [ ] Display results in a simple list.
 
 This phase comes first because it proves the central data flow and produces the smallest useful version of FoodFind.
 
@@ -119,10 +119,9 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Create the basic web application, then connect one place-data provider and display results for a fixed Toronto location.
+Connect Google Places through the provider interface, using mocked responses in automated tests. Before making live development requests, confirm that a low daily quota is configured in Google Cloud.
 
 ## Open decisions
 
-- First place-data provider
 - Map provider
 - Whether current-location support should move ahead of the map phase
