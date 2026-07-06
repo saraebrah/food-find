@@ -12,6 +12,16 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
+## Google Places setup
+
+Google integration is server-side only. Add the key to `.env`:
+
+```text
+GOOGLE_MAPS_API_KEY=your-key
+```
+
+Before making live requests, configure a low daily Places API quota in Google Cloud. Automated tests use mocked responses and do not require a key or call Google.
+
 ## Run
 
 ```sh

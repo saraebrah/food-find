@@ -16,7 +16,7 @@ Priority levels:
 - **Status:** In progress
 
 - [x] Create the basic web application.
-- [ ] Connect one place-data provider.
+- [ ] Connect one place-data provider. Google adapter implemented; quota confirmation and live verification pending.
 - [ ] Search using a fixed Toronto location and radius.
 - [ ] Normalize the provider response into FoodFind's place format.
 - [ ] Display results in a simple list.
