@@ -81,9 +81,11 @@ The integration must follow these safeguards:
 - Automated tests use mocked Google responses and never call the live API.
 - Page loads use one explicit search operation and must not create request loops.
 - The Google API key remains in a server-only environment variable and is never included in browser code or responses.
-- A low daily request quota must be configured in Google Cloud before live development calls begin.
+- The Google API key must be restricted to **Places API** and **Places API (New)** in Google Cloud.
+- A low daily request quota is preferred before broader live development calls begin.
+- If quota controls are unavailable during the Google Cloud free trial, live calls must stay manual and sparse, with billing alert monitoring.
 
-The quota is configured in Google Cloud, not in this repository. Live Google integration remains blocked until that setup is confirmed.
+The current Google Cloud setup uses API restrictions for **Places API** and **Places API (New)** because the key is used server-side in Python and there may not be a fixed server IP during local development. The current budget alert is `$2/month`. This is acceptable for local development, but it is weaker than a hard daily quota because a budget alert warns about spend rather than stopping requests.
 
 ### Rationale
 
