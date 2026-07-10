@@ -16,7 +16,7 @@ Priority levels:
 - **Status:** In progress
 
 - [x] Create the basic web application.
-- [ ] Connect one place-data provider. Google adapter implemented; quota confirmation and live verification pending.
+- [x] Connect one place-data provider. Google adapter implemented with mocked automated tests and one controlled live smoke test.
 - [ ] Search using a fixed Toronto location and radius.
 - [ ] Normalize the provider response into FoodFind's place format.
 - [ ] Display results in a simple list.
@@ -119,7 +119,7 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Connect Google Places through the provider interface, using mocked responses in automated tests. Before making live development requests, confirm that a low daily quota is configured in Google Cloud.
+Build the fixed Toronto search flow using the Google provider adapter. Live requests must stay manual and sparse while local development uses API restrictions plus the `$2/month` budget alert instead of a hard daily quota.
 
 ## Open decisions
 
