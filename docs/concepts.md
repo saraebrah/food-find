@@ -8,6 +8,12 @@ FoodFind currently talks to Google Places from the backend. The important design
 
 The rest of the app should depend on a simpler idea: “find nearby food places.” Google is one provider that can satisfy that need, but it should not shape the whole application.
 
+The main boundary is now represented by three parts:
+
+- `app/domain/place.py` defines FoodFind's `Place` and `Coordinates` objects.
+- `app/ports/place_provider.py` defines the search capability the application can use.
+- `app/adapters/google_places.py` translates between that capability and Google Places.
+
 ## Configuration and `.env`
 
 The Google API key lives in `.env`, outside the committed codebase.
@@ -145,9 +151,24 @@ After Google returns JSON, FoodFind validates and parses the response into Pydan
 This creates a clear boundary:
 
 - outside the adapter: raw provider JSON
-- inside the app: validated Python objects
+- inside the adapter: validated Google-specific Python objects
+- outside the adapter: FoodFind-owned `Place` objects
 
-As the project grows, this boundary should become even stricter by converting provider-specific objects into FoodFind-owned domain models.
+The conversion happens before the adapter returns, so application code never needs to read fields such as Google's `displayName`.
+
+## Domain models and immutable snapshots
+
+The internal `Place` and `Coordinates` objects are frozen dataclasses. A dataclass is a compact way to define a data-focused Python object. `frozen=True` prevents normal field reassignment after creation.
+
+That gives later steps one stable snapshot of a normalized provider result. Search and display code can pass the object explicitly without re-reading mutable provider data at different lifecycle stages.
+
+The internal model records the provider and provider place ID because the result still comes from an external source. Missing optional fields remain `None`; FoodFind does not guess values that Google did not return.
+
+## Ports and protocols
+
+A port describes a capability the application needs without selecting the technology that provides it. `PlaceProvider` says that a provider can search nearby and return FoodFind `Place` objects.
+
+Python's `Protocol` supports this style through structural typing: an adapter satisfies the port by providing the required method and compatible signature. The application can later receive a Google adapter, a Yelp adapter, or a fake test provider through the same boundary.
 
 ## Adapter / gateway pattern
 
@@ -178,9 +199,7 @@ The Google adapter should not be modified to pretend it is Yelp.
 
 Instead, the app would add a new provider adapter, such as a Yelp adapter, with the same high-level behavior. Ideally, both adapters expose a similar method such as `search_nearby`.
 
-A more mature version of FoodFind should define its own internal `Place` model. Then each provider adapter can translate provider-specific responses into that shared app-owned shape.
-
-That would let FoodFind work with its own concept of a place rather than Google’s or Yelp’s raw response format.
+FoodFind already defines its own internal `Place` model and `PlaceProvider` port. A Yelp adapter would translate Yelp's response into that same model rather than changing the Google adapter or exposing Yelp's raw response format to the application.
 
 ## Mental model
 

@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.adapters.google_places import GooglePlacesGateway
+from app.domain.place import Coordinates, Place
 
 
 @pytest.mark.anyio
@@ -55,7 +56,7 @@ async def test_search_nearby_makes_one_server_side_google_request() -> None:
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
 
-        response = await gateway.search_nearby(
+        places = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -63,8 +64,58 @@ async def test_search_nearby_makes_one_server_side_google_request() -> None:
         )
 
     assert request_count == 1
-    assert response.places[0].id == "google-place-1"
-    assert response.places[0].display_name.text == "Example Restaurant"
+    assert places == [
+        Place(
+            provider="google",
+            provider_place_id="google-place-1",
+            name="Example Restaurant",
+            category="Restaurant",
+            category_code="restaurant",
+            address="1 Front Street, Toronto, ON",
+            coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_search_nearby_preserves_missing_optional_place_fields() -> None:
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "places": [
+                    {
+                        "id": "google-place-2",
+                        "displayName": {"text": "Unnamed Category Cafe"},
+                        "location": {"latitude": 43.65, "longitude": -79.38},
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handle_request)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
+
+        places = await gateway.search_nearby(
+            latitude=43.6453,
+            longitude=-79.3806,
+            radius_meters=1000,
+            included_types=("restaurant",),
+        )
+
+    assert places == [
+        Place(
+            provider="google",
+            provider_place_id="google-place-2",
+            name="Unnamed Category Cafe",
+            category=None,
+            category_code=None,
+            address=None,
+            coordinates=Coordinates(latitude=43.65, longitude=-79.38),
+        )
+    ]
 
 
 @pytest.mark.anyio

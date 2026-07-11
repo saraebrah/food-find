@@ -3,6 +3,9 @@ from collections.abc import Sequence
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.domain.place import Coordinates, Place
+from app.ports.place_provider import PlaceProvider
+
 
 GOOGLE_NEARBY_SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby"
 GOOGLE_FIELD_MASK = ",".join(
@@ -43,7 +46,7 @@ class GoogleNearbySearchResponse(BaseModel):
     places: list[GooglePlaceRecord] = Field(default_factory=list)
 
 
-class GooglePlacesGateway:
+class GooglePlacesGateway(PlaceProvider):
     def __init__(self, *, api_key: str, http_client: httpx.AsyncClient) -> None:
         if not api_key.strip():
             raise ValueError("Google Places API key must not be empty")
@@ -58,7 +61,7 @@ class GooglePlacesGateway:
         longitude: float,
         radius_meters: float,
         included_types: Sequence[str],
-    ) -> GoogleNearbySearchResponse:
+    ) -> list[Place]:
         if not included_types:
             raise ValueError("At least one place type is required")
         if not 0 < radius_meters <= 50_000:
@@ -87,4 +90,25 @@ class GooglePlacesGateway:
         )
         response.raise_for_status()
 
-        return GoogleNearbySearchResponse.model_validate(response.json())
+        google_response = GoogleNearbySearchResponse.model_validate(response.json())
+
+        return [self._to_place(place) for place in google_response.places]
+
+    @staticmethod
+    def _to_place(place: GooglePlaceRecord) -> Place:
+        return Place(
+            provider="google",
+            provider_place_id=place.id,
+            name=place.display_name.text,
+            category=(
+                place.primary_type_display_name.text
+                if place.primary_type_display_name
+                else None
+            ),
+            category_code=place.primary_type,
+            address=place.formatted_address,
+            coordinates=Coordinates(
+                latitude=place.location.latitude,
+                longitude=place.location.longitude,
+            ),
+        )

@@ -20,16 +20,16 @@ async def run() -> None:
             api_key=settings.google_maps_api_key.get_secret_value(),
             http_client=http_client,
         )
-        response = await gateway.search_nearby(
+        places = await gateway.search_nearby(
             latitude=TORONTO_CITY_HALL_LATITUDE,
             longitude=TORONTO_CITY_HALL_LONGITUDE,
             radius_meters=SMOKE_TEST_RADIUS_METERS,
             included_types=SMOKE_TEST_TYPES,
         )
 
-    print(f"Google Places smoke test succeeded: {len(response.places)} places returned.")
-    for place in response.places[:3]:
-        print(f"- {place.display_name.text}")
+    print(f"Google Places smoke test succeeded: {len(places)} places returned.")
+    for place in places[:3]:
+        print(f"- {place.name}")
 
 
 def main() -> None:
