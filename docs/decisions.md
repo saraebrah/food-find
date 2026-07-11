@@ -90,3 +90,29 @@ The current Google Cloud setup uses API restrictions for **Places API** and **Pl
 ### Rationale
 
 Google Places supplies the basic place fields needed for the first version, and expected development usage should remain within its monthly free allowance. The existing provider interface decision keeps the application replaceable if that changes.
+
+## Internal place model and provider port
+
+- **Date:** 2026-07-11
+- **Status:** Current approach
+
+### Decision
+
+Provider adapters return FoodFind-owned `Place` objects through the `PlaceProvider` port. The internal model currently contains:
+
+- provider name and provider place ID
+- business name
+- provider-supplied category label and category code
+- address
+- coordinates
+
+Google response models remain inside the Google adapter and are converted to the internal model before results leave that boundary. Optional provider fields remain `None` when unavailable instead of being inferred.
+
+Category labels and codes are still provider-supplied at this stage. A shared FoodFind category taxonomy will be introduced only when manual place-type filtering requires one.
+
+### Rationale
+
+- Application code can search for places without depending on Google's response schema.
+- Another provider can implement the same port and return the same internal model.
+- Immutable domain objects make one normalized provider response a stable snapshot for later application and display steps.
+- Delaying a shared category taxonomy avoids inventing filtering behavior before that feature is built.
