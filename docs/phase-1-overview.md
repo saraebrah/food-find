@@ -95,31 +95,6 @@ This follows a small hexagonal, or ports-and-adapters, structure. The core conce
 
 ## Production Python files
 
-### `app/__init__.py`
-
-Purpose:
-
-- Marks `app` as a Python package.
-- Gives the package a short description.
-
-Used by:
-
-- Python's import system when code imports modules such as `app.main` or `app.domain.place`.
-
-Prerequisites:
-
-- None beyond Python.
-
-It contains no runtime behavior.
-
-### `app/domain/__init__.py`
-
-Purpose:
-
-- Marks `app.domain` as the package containing FoodFind-owned domain models.
-
-The domain package should remain independent of Google, FastAPI, HTTP, and browser behavior.
-
 ### `app/domain/place.py`
 
 Purpose:
@@ -150,11 +125,34 @@ Why it exists:
 
 Without this file, application and browser-facing code would depend on fields such as Google's `displayName`. Adding Yelp or another provider would then require changing core code. The internal `Place` model prevents that coupling.
 
-### `app/ports/__init__.py`
+#### How `Place` makes provider results consistent
 
-Purpose:
+`Place` defines the consistent **data format of each returned search result** across FoodFind. It does not define the parameters or behavior of the `search_nearby(...)` function; `PlaceProvider` handles that separate responsibility.
 
-- Marks `app.ports` as the package containing interfaces between the application core and external systems.
+Every gateway's `search_nearby(...)` implementation should return FoodFind `Place` objects, regardless of the provider's original response format:
+
+```text
+Google record ──Google gateway──> Place
+Yelp record   ───Yelp gateway───> Place
+Other record  ──Other gateway───> Place
+```
+
+The conversion normally happens inside the provider adapter or gateway. In the current Google gateway, `search_nearby(...)` validates Google's response and calls `_to_place(...)` for every Google record. A future Yelp gateway would perform its own Yelp-to-`Place` conversion before returning its results.
+
+This means the rest of FoodFind can always work with fields such as:
+
+- `place.name`
+- `place.category`
+- `place.address`
+- `place.coordinates`
+
+It does not need one code path for `google_place.displayName` and another for whatever field name Yelp uses.
+
+The precise distinction is:
+
+- `Place` standardizes the shape of one result.
+- `Sequence[Place]` standardizes the collection returned by a search.
+- `PlaceProvider.search_nearby(...)` standardizes the search method's required behavior and signature.
 
 ### `app/ports/place_provider.py`
 
@@ -191,11 +189,48 @@ Why it exists:
 
 The port lets high-level application code depend on a capability instead of a vendor. Later, another adapter can implement the same method without rewriting the search use case.
 
-### `app/adapters/__init__.py`
+#### How `PlaceProvider` acts as a contract
 
-Purpose:
+It is reasonable to think of `PlaceProvider` as a template, but **contract**, **interface**, or **protocol** is more precise. It describes the method a place provider must offer:
 
-- Marks `app.adapters` as the package containing implementations for external services.
+```python
+async def search_nearby(
+    *,
+    latitude: float,
+    longitude: float,
+    radius_meters: float,
+    included_types: Sequence[str],
+) -> Sequence[Place]
+```
+
+It does not contain the real search implementation. Google and Yelp need different request code, so each gateway supplies its own implementation while following this shared contract.
+
+In the current declaration:
+
+```python
+class GooglePlacesGateway(PlaceProvider):
+```
+
+`GooglePlacesGateway` explicitly inherits from the `PlaceProvider` protocol. Calling it a parent is not entirely wrong in normal Python inheritance terms, but it is important that this parent supplies a required shape rather than shared search behavior. The actual Google behavior still lives in `GooglePlacesGateway.search_nearby(...)`.
+
+Python protocols also support structural typing. That means another class can satisfy `PlaceProvider` by defining a compatible `search_nearby(...)` method even if it does not explicitly write `(PlaceProvider)` after its class name. Explicit inheritance is used for `GooglePlacesGateway` because it makes the intended relationship clear.
+
+In the FastAPI route:
+
+```python
+async def search_places(
+    place_provider: Annotated[PlaceProvider, Depends(get_place_provider)],
+):
+```
+
+the two parts of `Annotated[...]` have different jobs:
+
+- `PlaceProvider` is the declared type of the `place_provider` parameter. It tells readers, editors, and type checkers which behavior the route is allowed to rely on.
+- `Depends(get_place_provider)` is FastAPI metadata. It tells FastAPI to call `get_place_provider()` and inject the returned object as the argument.
+
+During a real search, the injected object is a `GooglePlacesGateway`. During tests, FastAPI's dependency override injects a fake recording provider. The route can use either because it depends only on the `PlaceProvider` contract.
+
+A protocol is primarily a design and type-checking contract; it does not automatically perform complete runtime validation of every method signature. Tests and static type checking provide additional verification that implementations behave as expected.
 
 ### `app/adapters/google_places.py`
 
@@ -265,14 +300,6 @@ Used by:
 Why this file exists:
 
 Google authentication, field masks, request bodies, aliases, and response formats are not FoodFind business rules. Keeping them in an adapter makes the rest of FoodFind provider-independent and easier to test.
-
-### `app/application/__init__.py`
-
-Purpose:
-
-- Marks `app.application` as the package containing application use cases.
-
-A use case coordinates an action the application performs. It sits between web routes and provider adapters.
 
 ### `app/application/search_fixed_toronto.py`
 
@@ -403,13 +430,6 @@ Why this file does not perform Google mapping itself:
 
 `app/main.py` is the web and wiring layer. Moving provider request construction or response normalization here would mix HTTP routing with Google behavior and make both harder to replace and test.
 
-### `app/scripts/__init__.py`
-
-Purpose:
-
-- Marks `app.scripts` as a package so scripts can be run with commands such as `python -m app.scripts.google_places_smoke`.
-
-It intentionally contains no runtime code.
 
 ### `app/scripts/google_places_smoke.py`
 
