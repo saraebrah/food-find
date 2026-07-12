@@ -3,6 +3,7 @@
   font-family: system-ui, sans-serif;
   background: #f7f5ef;
   color: #25251f;
+  font-synthesis: none;
 }
 
 body {
@@ -10,8 +11,8 @@ body {
 }
 
 main {
-  width: min(40rem, calc(100% - 3rem));
-  margin: 15vh auto 0;
+  width: min(48rem, calc(100% - 3rem));
+  margin: clamp(3rem, 9vh, 7rem) auto 5rem;
 }
 
 .eyebrow {
@@ -26,8 +27,137 @@ h1 {
   margin: 0;
   font-size: clamp(3rem, 10vw, 6rem);
   letter-spacing: -0.06em;
+  line-height: 0.95;
 }
 
-h1 + p {
+.intro {
+  margin: 1.25rem 0 0;
   font-size: 1.25rem;
+}
+
+.search-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-top: 3.5rem;
+  padding: 1.5rem;
+  border: 1px solid #d9d5c7;
+  border-radius: 1rem;
+  background: #fffdf7;
+}
+
+.search-panel h2,
+.results-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.search-panel p {
+  margin: 0.4rem 0 0;
+  color: #5a594f;
+  line-height: 1.5;
+}
+
+button {
+  flex: none;
+  padding: 0.8rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: #3f562b;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #2f421f;
+}
+
+button:focus-visible {
+  outline: 3px solid #9ab474;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.search-status {
+  min-height: 1.5rem;
+  margin: 1rem 0 0;
+  color: #5a594f;
+}
+
+#results-section {
+  margin-top: 2.5rem;
+}
+
+.results-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #d9d5c7;
+}
+
+.results-heading p {
+  margin: 0;
+  color: #5a594f;
+}
+
+.place-results {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place-card {
+  padding: 1.25rem;
+  border: 1px solid #e2ded2;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.place-card p,
+.place-name {
+  margin: 0;
+}
+
+.place-name {
+  font-size: 1.1rem;
+}
+
+.place-category {
+  padding-top: 0.35rem;
+  color: #4c6335;
+  font-weight: 650;
+}
+
+.place-address {
+  padding-top: 0.65rem;
+  color: #4d4c45;
+}
+
+.place-source {
+  padding-top: 0.65rem;
+  color: #77756b;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 36rem) {
+  .search-panel {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  button {
+    width: 100%;
+  }
 }

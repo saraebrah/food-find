@@ -14,34 +14,7 @@ The main boundary is now represented by three parts:
 - `app/ports/place_provider.py` defines the search capability the application can use.
 - `app/adapters/google_places.py` translates between that capability and Google Places.
 
-## Configuration and `.env`
 
-The Google API key lives in `.env`, outside the committed codebase.
-
-That gives the project one local place for secrets while keeping them out of Git. The app reads the value through the settings layer instead of reading environment variables directly in many files.
-
-In this project:
-
-- `.env` stores local secret values.
-- `app/settings.py` defines the settings object.
-- Application code receives configuration through that settings object.
-
-This keeps configuration access consistent and easier to change later.
-
-## Secret values
-
-The Google API key is represented as a secret value in the settings layer.
-
-This does not make the key impossible to leak, but it reduces accidental exposure in logs, repr output, tracebacks, and debug printing. When code truly needs the raw key, it must explicitly extract the value and pass it to the Google adapter.
-
-The key should not appear in:
-
-- browser code
-- rendered HTML
-- committed files
-- test fixtures
-- logs
-- error output
 
 ## HTTP client
 
@@ -169,6 +142,40 @@ The internal model records the provider and provider place ID because the result
 A port describes a capability the application needs without selecting the technology that provides it. `PlaceProvider` says that a provider can search nearby and return FoodFind `Place` objects.
 
 Python's `Protocol` supports this style through structural typing: an adapter satisfies the port by providing the required method and compatible signature. The application can later receive a Google adapter, a Yelp adapter, or a fake test provider through the same boundary.
+
+
+## Dependency injection
+
+Dependency injection means that code receives a dependency instead of constructing a specific implementation deep inside its logic.
+
+The search route asks FastAPI for a `PlaceProvider`. During a real search, FastAPI supplies the server-side Google adapter. During an automated test, the test overrides that dependency with a fake provider.
+
+This matters for both architecture and safety:
+
+- the use case depends on the `PlaceProvider` port, not Google
+- automated tests cannot accidentally contact Google
+- the API key is loaded only for an explicit search request
+- loading or reloading the home page never creates the provider or runs a search
+
+## Browser events and explicit requests
+
+The browser script registers a click-event listener on the **Search Toronto** button. Registering the listener describes what should happen later; it does not run the search when the script loads.
+
+Only a click reaches `fetch(...)`, which sends one `POST` request to the FoodFind backend. The button is disabled until that request finishes, preventing a second click from starting an overlapping request.
+
+This lifecycle is deliberate:
+
+1. Page loads and registers the click handler.
+2. No provider or search exists yet.
+3. User clicks the button.
+4. One request returns one normalized result snapshot.
+5. The browser renders that snapshot.
+
+## Safe DOM rendering
+
+The browser creates list elements and assigns provider values through `textContent`. Text content is displayed as text, even if an external value contains characters that resemble HTML.
+
+This is safer than building an HTML string from provider data and assigning it to `innerHTML`, which could cause untrusted markup to be interpreted by the browser.
 
 ## Adapter / gateway pattern
 

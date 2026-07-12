@@ -116,3 +116,42 @@ Category labels and codes are still provider-supplied at this stage. A shared Fo
 - Another provider can implement the same port and return the same internal model.
 - Immutable domain objects make one normalized provider response a stable snapshot for later application and display steps.
 - Delaying a shared category taxonomy avoids inventing filtering behavior before that feature is built.
+
+## Fixed Toronto search lifecycle
+
+- **Date:** 2026-07-11
+- **Status:** Current Phase 1 behavior
+
+### Decision
+
+The first application search uses Toronto City Hall (`43.6532`, `-79.3832`), a 1,000-metre radius, and the provider types `restaurant` and `cafe`.
+
+The search is exposed as `POST /api/places/search`. Normal page loads do not invoke the endpoint or construct the Google provider. Each endpoint request creates a server-side provider dependency, executes the application use case once, and returns normalized places.
+
+The page will call this endpoint only after a deliberate user action in the next Phase 1 task. Because the search is not tied to page loading, refreshing the page cannot start a request loop or repeat a previous POST.
+
+### Rationale
+
+- Fixed criteria prove the application flow before location and radius controls are introduced.
+- A `POST` endpoint represents an explicit operation and is not fetched as a page resource.
+- Dependency injection lets automated tests substitute a fake provider without loading the API key or contacting Google.
+- Keeping the coordinates and radius in one application use case prevents different entry points from using different fixed search state.
+
+## Phase 1 browser interface
+
+- **Date:** 2026-07-11
+- **Status:** Temporary Phase 1 approach
+
+### Decision
+
+The first result list uses the existing server-rendered page plus a small deferred JavaScript file. The script calls the fixed search endpoint only from the **Search Toronto** click handler and renders the returned normalized places with DOM APIs.
+
+SvelteKit and the TypeScript frontend build system are deferred until the interface needs reusable controls and richer client state. This is not a change to the preferred frontend stack; it keeps the Phase 1 data-flow proof focused and avoids introducing a second application structure solely for one button and list.
+
+### Safeguards
+
+- Script initialization makes no API request.
+- The search button is disabled while a request is active.
+- Provider strings are assigned with `textContent`, not inserted as HTML.
+- A page reload returns to the initial state and does not repeat the previous search.
+- Automated backend and page tests continue to use fake or mocked providers.

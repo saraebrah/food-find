@@ -5,12 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FoodFind</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}" />
+    <script src="{{ url_for('static', path='/search.js') }}" defer></script>
   </head>
   <body>
     <main>
-      <p class="eyebrow">Phase 1</p>
-      <h1>FoodFind</h1>
-      <p>Nearby food discovery starts here.</p>
+      <header class="hero">
+        <p class="eyebrow">Phase 1</p>
+        <h1>FoodFind</h1>
+        <p class="intro">Nearby food discovery starts here.</p>
+      </header>
+
+      <section class="search-panel" aria-labelledby="search-heading">
+        <div>
+          <h2 id="search-heading">Explore central Toronto</h2>
+          <p>Find restaurants and cafés within 1 km of Toronto City Hall.</p>
+        </div>
+        <button id="search-button" type="button">Search Toronto</button>
+      </section>
+
+      <p id="search-status" class="search-status" role="status" aria-live="polite">
+        Select search when you are ready.
+      </p>
+
+      <section id="results-section" aria-labelledby="results-heading" hidden>
+        <div class="results-heading">
+          <h2 id="results-heading">Places</h2>
+          <p id="result-count"></p>
+        </div>
+        <ul id="place-results" class="place-results"></ul>
+      </section>
+
+      <noscript>JavaScript is required to run the place search.</noscript>
     </main>
   </body>
 </html>

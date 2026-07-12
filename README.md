@@ -1,6 +1,6 @@
 # FoodFind
 
-FoodFind is a web application for discovering places to get food near a selected location. The project is currently implementing Phase 1 from [`docs/roadmap.md`](docs/roadmap.md).
+FoodFind is a web application for discovering places to get food near a selected location. Phase 1 is complete; current build status and next work are tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Setup
 
@@ -57,3 +57,4 @@ pytest
 - [`docs/features.md`](docs/features.md): feature behavior
 - [`docs/decisions.md`](docs/decisions.md): product and technical decisions
 - [`docs/concepts.md`](docs/concepts.md): implementation concepts explained
+- [`docs/phase-1-overview.md`](docs/phase-1-overview.md): Phase 1 architecture and file-by-file walkthrough
