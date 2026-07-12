@@ -13,13 +13,13 @@ Priority levels:
 ## Phase 1 — First real results
 
 - **Priority:** P0
-- **Status:** In progress
+- **Status:** Complete
 
 - [x] Create the basic web application.
 - [x] Connect one place-data provider. Google adapter implemented with mocked automated tests and one controlled live smoke test.
 - [x] Normalize provider responses into FoodFind's place format behind a provider port.
-- [ ] Search using a fixed Toronto location and radius.
-- [ ] Display results in a simple list.
+- [x] Search using a fixed Toronto location and radius through an explicit server endpoint.
+- [x] Display normalized results in a simple list after an explicit search action.
 
 This phase comes first because it proves the central data flow and produces the smallest useful version of FoodFind.
 
@@ -119,7 +119,7 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Build an explicit fixed-Toronto search action using the provider port. It must make at most one Google request per deliberate search action and must not run automatically on page load or reload. Live requests must stay manual and sparse while local development uses API restrictions plus the `$2/month` budget alert instead of a hard daily quota.
+Begin Phase 2 by letting users enter or select a search location. Preserve the explicit search action so changing or reloading the page does not call the provider automatically.
 
 ## Open decisions
 
