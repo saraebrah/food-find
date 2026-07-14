@@ -120,7 +120,7 @@ Category labels and codes are still provider-supplied at this stage. A shared Fo
 ## Fixed Toronto search lifecycle
 
 - **Date:** 2026-07-11
-- **Status:** Current Phase 1 behavior
+- **Status:** Superseded by the normalized selected-location search on 2026-07-12
 
 ### Decision
 
@@ -136,6 +136,32 @@ The page will call this endpoint only after a deliberate user action in the next
 - A `POST` endpoint represents an explicit operation and is not fetched as a page resource.
 - Dependency injection lets automated tests substitute a fake provider without loading the API key or contacting Google.
 - Keeping the coordinates and radius in one application use case prevents different entry points from using different fixed search state.
+
+## Normalized selected location and generalized search
+
+- **Date:** 2026-07-12
+- **Status:** Current approach
+
+### Decision
+
+Every location input method will produce a FoodFind-owned `SelectedLocation` containing:
+
+- a visible label
+- coordinates
+- optional provider name and provider place ID
+
+`SearchPlaces` receives this object inside `SearchCriteria` and passes its coordinates to the existing `PlaceProvider`. The place types remain `restaurant` and `cafe` until their later roadmap step.
+
+For Step 1A, the browser accepts decimal coordinates and sends the normalized label, latitude, and longitude to `POST /api/places/search`. The API validates finite values and coordinate ranges with a Pydantic boundary model before constructing the domain object.
+
+The previous `SearchFixedTorontoPlaces` class remains as a compatibility wrapper around `SearchPlaces`; the active web route no longer depends on fixed Toronto constants.
+
+### Rationale
+
+- Address suggestions, coordinates, map clicks, and current location can all converge on one domain format.
+- The search use case does not need to know how the location was obtained.
+- Backend validation remains authoritative even though the browser also provides immediate input guidance.
+- Snapshotting and disabling the field during a request prevents lifecycle inconsistencies between the searched coordinates and visible input.
 
 ## Phase 1 browser interface
 
@@ -155,3 +181,58 @@ SvelteKit and the TypeScript frontend build system are deferred until the interf
 - Provider strings are assigned with `textContent`, not inserted as HTML.
 - A page reload returns to the initial state and does not repeat the previous search.
 - Automated backend and page tests continue to use fake or mocked providers.
+
+## Google location autocomplete lifecycle
+
+- **Date:** 2026-07-12
+- **Status:** Current approach
+
+### Decision
+
+FoodFind uses server-side **Autocomplete (New)** for place and address suggestions and **Place Details (New)** to resolve a selected prediction into coordinates. Both operations stay behind the FoodFind-owned `LocationProvider` port.
+
+The browser generates a UUIDv4 session token. It reuses that token for debounced autocomplete requests and the single Place Details request that completes the selection, then generates a new token. The API rejects other UUID versions.
+
+Autocomplete begins after three characters and a 350-millisecond debounce. Editing the query aborts the previous browser request. Google requests use a Toronto location bias, Canadian region formatting, and English language preference; the bias influences ordering but does not restrict results to Toronto or Canada.
+
+Place Details requests only `id` and `location`. The selected label comes from the autocomplete prediction, avoiding an unnecessary `displayName` field while retaining the user-visible prediction they selected.
+
+### Provider and privacy safeguards
+
+- API keys remain in server-only headers.
+- Browser-to-FoodFind requests use POST bodies rather than putting typed addresses in URLs.
+- Autocomplete, resolution, and nearby-search responses use `Cache-Control: no-store`.
+- Automated tests replace the location provider or HTTP transport and never call Google.
+- Suggestions display visible `Google Maps` text attribution in the same container.
+- Google-derived result cards identify their source as `Google Maps`.
+- Publicly accessible terms and privacy information incorporating Google's required terms must be added before the project is made available beyond local/private development.
+
+### Rationale
+
+- All input methods still converge on the same `SelectedLocation` domain object.
+- Debouncing, cancellation, and explicit selection limit calls and prevent stale suggestions from becoming current state.
+- Session tokens group one typing-and-selection interaction for correct Google billing behavior.
+- A separate location-provider port keeps autocomplete concerns out of nearby food-place search logic.
+
+## Normalized search criteria and radius
+
+- **Date:** 2026-07-12
+- **Status:** Current approach
+
+### Decision
+
+`SearchCriteria` is the application-owned immutable snapshot for one place search. It currently contains:
+
+- the normalized `SelectedLocation`
+- radius in metres
+
+The browser offers 500 m, 1 km, 2 km, and 5 km presets. The API accepts and validates values from 100 m through 50,000 m, while the application use case passes the chosen value through the existing provider port without modification.
+
+Changing the radius clears the visible result state but does not search. When the user explicitly starts a search, the browser snapshots the current location and radius and disables both controls until the request completes.
+
+### Rationale
+
+- Later manual filters and smart-search interpretation can extend one normalized search object instead of adding unrelated function arguments.
+- The API boundary remains authoritative even though the current UI exposes only valid presets.
+- Snapshotting the controls prevents a request from displaying results under a location or radius that changed while it was running.
+- Keeping the provider port in metres avoids UI-label and unit-conversion concerns inside provider adapters.

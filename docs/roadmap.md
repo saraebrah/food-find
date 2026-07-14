@@ -26,9 +26,11 @@ This phase comes first because it proves the central data flow and produces the 
 ## Phase 2 — Basic place discovery
 
 - **Priority:** P0
-- **Status:** Not started
+- **Status:** In progress
 
 1. Let users enter or select a location.
+   - [x] **Step 1A:** Generalize search around a normalized selected location and accept decimal coordinates.
+   - [x] **Step 1B:** Add Google place/address autocomplete and suggestion selection.
 2. Let users choose a radius.
 3. Add loading, error, and no-results states.
 4. Show essential information for each result.
@@ -43,9 +45,10 @@ This phase turns the fixed search from Phase 1 into a usable discovery flow.
 - **Status:** Not started
 
 1. Display results on a map.
-2. Keep map markers and result-list items connected.
-3. Support selecting a business from either view.
-4. Update the map when the location or radius changes.
+2. Let users select or adjust the search location on the map.
+3. Keep map markers and result-list items connected.
+4. Support selecting a business from either view.
+5. Update the map when the location or radius changes.
 
 The list and search behavior should work before map synchronization is added.
 
@@ -119,7 +122,7 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Begin Phase 2 by letting users enter or select a search location. Preserve the explicit search action so changing or reloading the page does not call the provider automatically.
+Implement Phase 2 Step 2: let users choose a search radius and pass the validated radius through the generalized search use case to the place-provider port. Preserve the explicit search action and keep page loads, location edits, and radius edits free of automatic provider calls.
 
 ## Open decisions
 

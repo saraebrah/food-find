@@ -36,6 +36,14 @@ Example requests:
 ### Search
 
 - Current or selected location
+- The selected-location control should eventually support:
+  - place-name and address suggestions while the user types
+  - selecting a suggested place or address
+  - entering or pasting decimal latitude and longitude coordinates
+  - selecting a point on the map once the map experience exists
+  - using the device's current location with permission
+- Every location input method must produce one visible, normalized selected location with a label and coordinates before a place search runs.
+- Ambiguous, invalid, or unsupported location input must not silently start a search from an assumed location.
 - Map
 - The search box must accept short keywords, such as `Thai food`.
 - The search box must accept natural-language requests, such as `Persian restaurants within three kilometres that are open now`.
@@ -171,4 +179,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Call one place-data API for a fixed Toronto location and display the returned food businesses in a basic list.
+Define complete loading, provider-error, validation-error, and no-results states for the location and nearby-search flow.

@@ -28,6 +28,8 @@ Current local-development setup:
 
 A daily quota is preferred before broader live testing. If Google Cloud does not allow quota changes during the free trial, keep live requests manual and sparse until quota controls are available. Automated tests use mocked responses and do not require a key or call Google.
 
+Location autocomplete and selection use **Places API (New)**, so the existing API restriction covers them; no additional Google API needs to be enabled for Phase 2 Step 1B.
+
 To make one controlled live request for local verification:
 
 ```sh
