@@ -8,11 +8,13 @@ FoodFind currently talks to Google Places from the backend. The important design
 
 The rest of the app should depend on a simpler idea: “find nearby food places.” Google is one provider that can satisfy that need, but it should not shape the whole application.
 
-The main boundary is now represented by three parts:
+The main place-provider boundary is represented by three parts:
 
 - `app/domain/place.py` defines FoodFind's `Place` and `Coordinates` objects.
 - `app/ports/place_provider.py` defines the search capability the application can use.
 - `app/adapters/google_places.py` translates between that capability and Google Places.
+
+Location inputs converge separately into `app/domain/location.py`. A `SelectedLocation` gives the search use case one label and coordinate snapshot regardless of whether it eventually came from typed coordinates, autocomplete, a map click, or device location.
 
 
 
@@ -159,7 +161,7 @@ This matters for both architecture and safety:
 
 ## Browser events and explicit requests
 
-The browser script registers a click-event listener on the **Search Toronto** button. Registering the listener describes what should happen later; it does not run the search when the script loads.
+The browser script registers a click-event listener on the **Search** button. Registering the listener describes what should happen later; it does not run the search when the script loads.
 
 Only a click reaches `fetch(...)`, which sends one `POST` request to the FoodFind backend. The button is disabled until that request finishes, preventing a second click from starting an overlapping request.
 
@@ -167,9 +169,48 @@ This lifecycle is deliberate:
 
 1. Page loads and registers the click handler.
 2. No provider or search exists yet.
-3. User clicks the button.
-4. One request returns one normalized result snapshot.
-5. The browser renders that snapshot.
+3. User enters a location and clicks the button.
+4. The browser snapshots and disables the location input.
+5. One request returns one normalized result snapshot.
+6. The browser re-enables the input and renders that snapshot.
+
+## Debouncing, cancellation, and stale responses
+
+Autocomplete should not send a request for every keystroke. Debouncing starts a short timer after an edit and resets that timer if another edit arrives. FoodFind waits 350 milliseconds after the most recent edit before asking for suggestions.
+
+Debouncing limits requests before they start. `AbortController` handles requests that already started: a new input value aborts the previous browser request. The response handler also compares the input with its original query before displaying suggestions. This second check protects the interface even if a response arrives too late to be cancelled.
+
+## Autocomplete session tokens
+
+One location-selection interaction can contain several suggestion requests followed by one selection-resolution request. A UUIDv4 session token identifies those calls as one Google autocomplete session.
+
+The token is not an API key or authentication secret. It is session metadata used for billing and lifecycle grouping. After Place Details resolves the selected suggestion, that session is finished and the browser generates a new token for the next interaction.
+
+## Location-provider port
+
+`LocationProvider` is separate from `PlaceProvider` because they answer different questions:
+
+- `LocationProvider`: “What location does the user mean?”
+- `PlaceProvider`: “What food places are near these coordinates?”
+
+Google currently implements both capabilities through separate adapters. Keeping the ports distinct allows either capability to change without combining autocomplete state with food-result search logic.
+
+## Boundary validation and domain data
+
+The API receives location data from the browser through a Pydantic request model. That boundary model trims the label, rejects blank or overly long labels, rejects non-finite numbers, and validates latitude and longitude ranges.
+
+Only validated values are converted into the frozen `SelectedLocation` domain dataclass. The distinction is useful:
+
+- the API model protects the application from untrusted request data
+- the domain model gives internal code a small provider-independent location snapshot
+
+## Normalized search criteria
+
+`SearchCriteria` groups every value that defines one search snapshot. It currently contains the selected location and radius in metres. Later phases can extend it with normalized filters and sorting.
+
+This is different from passing individual values that might be reread at different times. The browser snapshots the location and radius together when Search is selected, the API validates them together, and the application passes the same criteria through one use-case execution.
+
+The radius control uses friendly labels such as `500 m` and `2 km`, but the API, domain, and provider port use metres consistently. Converting to one unit at the interface prevents each downstream layer from interpreting units differently.
 
 ## Safe DOM rendering
 

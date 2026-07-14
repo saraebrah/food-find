@@ -10,17 +10,58 @@
   <body>
     <main>
       <header class="hero">
-        <p class="eyebrow">Phase 1</p>
+        <p class="eyebrow">Phase 2</p>
         <h1>FoodFind</h1>
         <p class="intro">Nearby food discovery starts here.</p>
       </header>
 
       <section class="search-panel" aria-labelledby="search-heading">
-        <div>
-          <h2 id="search-heading">Explore central Toronto</h2>
-          <p>Find restaurants and cafés within 1 km of Toronto City Hall.</p>
+        <div class="search-copy">
+          <h2 id="search-heading">Choose a location</h2>
+          <p id="location-help">
+            Start typing a place or address, or enter decimal coordinates as latitude, longitude.
+            Then choose how far around it to search.
+          </p>
         </div>
-        <button id="search-button" type="button">Search Toronto</button>
+        <div class="search-controls">
+          <div class="search-action">
+            <div class="location-control">
+              <label for="location-input">Location</label>
+              <input
+                id="location-input"
+                name="location"
+                type="text"
+                inputmode="search"
+                autocomplete="off"
+                spellcheck="false"
+                aria-describedby="location-help"
+                aria-autocomplete="list"
+                aria-controls="location-suggestions"
+                aria-expanded="false"
+                role="combobox"
+                value="43.6532, -79.3832"
+              />
+              <div id="suggestions-panel" class="suggestions-panel" hidden>
+                <ul
+                  id="location-suggestions"
+                  class="location-suggestions"
+                  role="listbox"
+                ></ul>
+                <p class="google-maps-attribution" translate="no">Google Maps</p>
+              </div>
+            </div>
+            <div class="radius-control">
+              <label for="radius-select">Radius</label>
+              <select id="radius-select" name="radius">
+                <option value="500">500 m</option>
+                <option value="1000" selected>1 km</option>
+                <option value="2000">2 km</option>
+                <option value="5000">5 km</option>
+              </select>
+            </div>
+            <button id="search-button" type="button">Search</button>
+          </div>
+        </div>
       </section>
 
       <p id="search-status" class="search-status" role="status" aria-live="polite">
