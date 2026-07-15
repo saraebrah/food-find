@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.domain.place import Coordinates, Place
 from app.main import app, get_place_provider
+from app.ports.place_provider import PlaceProviderError
 
 
 class RecordingPlaceProvider:
@@ -40,6 +41,18 @@ class RecordingPlaceProvider:
                 coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
             )
         ]
+
+
+class FailingPlaceProvider:
+    async def search_nearby(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        radius_meters: float,
+        included_types: Sequence[str],
+    ) -> Sequence[Place]:
+        raise PlaceProviderError("private provider details")
 
 
 @pytest.fixture
@@ -84,6 +97,11 @@ def test_search_script_is_served_as_a_static_asset(client: TestClient) -> None:
     assert 'crypto.randomUUID()' in response.text
     assert 'looksLikeCoordinatePair(query)' in response.text
     assert 'radiusSelect.addEventListener("change"' in response.text
+    assert "function clearResults()" in response.text
+    assert "if (places.length === 0)" in response.text
+    assert 'places.length === 0 ? "No places found."' in response.text
+    assert "response.status === 422" in response.text
+    assert "Search is temporarily unavailable. Please try again." in response.text
 
 
 def test_page_loads_do_not_search_provider(client: TestClient) -> None:
@@ -153,6 +171,27 @@ def test_explicit_search_calls_provider_once_and_returns_places(
             "coordinates": {"latitude": 43.6454, "longitude": -79.3805},
         }
     ]
+
+
+def test_search_returns_safe_provider_error(client: TestClient) -> None:
+    app.dependency_overrides[get_place_provider] = lambda: FailingPlaceProvider()
+
+    response = client.post(
+        "/api/places/search",
+        json={
+            "location": {
+                "label": "Union Station coordinates",
+                "latitude": 43.6453,
+                "longitude": -79.3806,
+            },
+            "radius_meters": 1_000,
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.json() == {"detail": "Place search is temporarily unavailable"}
+    assert "private provider details" not in response.text
 
 
 @pytest.mark.parametrize(

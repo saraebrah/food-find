@@ -236,3 +236,20 @@ Changing the radius clears the visible result state but does not search. When th
 - The API boundary remains authoritative even though the current UI exposes only valid presets.
 - Snapshotting the controls prevents a request from displaying results under a location or radius that changed while it was running.
 - Keeping the provider port in metres avoids UI-label and unit-conversion concerns inside provider adapters.
+
+## Provider failure boundary
+
+- **Date:** 2026-07-13
+- **Status:** Current approach
+
+### Decision
+
+Google adapters translate transport errors, unsuccessful provider responses, and invalid provider response data into provider-neutral `PlaceProviderError` or `LocationProviderError` exceptions. FastAPI routes convert those exceptions into safe HTTP `502` responses with `Cache-Control: no-store`.
+
+The browser distinguishes invalid input from temporary provider or network failure, clears stale results, and restores disabled controls after each request. This uses direct status updates and one result-clearing helper rather than a separate frontend state-management system.
+
+### Rationale
+
+- Core routes and future provider adapters do not need Google-specific error handling.
+- Provider response details are not exposed to the browser.
+- The current UI stays simple while giving each operation a predictable recovery path.
