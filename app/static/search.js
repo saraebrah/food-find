@@ -76,6 +76,12 @@ function hideSuggestions() {
   locationInput.setAttribute("aria-expanded", "false");
 }
 
+function clearResults() {
+  placeResults.replaceChildren();
+  resultCount.textContent = "";
+  resultsSection.hidden = true;
+}
+
 function providerName(provider) {
   if (provider === "google") {
     return "Google Maps";
@@ -93,7 +99,11 @@ function formatRadius(radiusMeters) {
 }
 
 function renderPlaces(places) {
-  placeResults.replaceChildren();
+  clearResults();
+
+  if (places.length === 0) {
+    return;
+  }
 
   for (const place of places) {
     const item = document.createElement("li");
@@ -143,6 +153,11 @@ async function resolveSuggestion(suggestion) {
         session_token: resolvingSessionToken,
       }),
     });
+
+    if (response.status === 422) {
+      searchStatus.textContent = "That location selection is invalid. Please try again.";
+      return;
+    }
 
     if (!response.ok) {
       throw new Error(`Location resolution failed with status ${response.status}`);
@@ -214,6 +229,11 @@ async function requestSuggestions() {
       }),
     });
 
+    if (response.status === 422) {
+      searchStatus.textContent = "Enter a valid location search.";
+      return;
+    }
+
     if (!response.ok) {
       throw new Error(`Autocomplete failed with status ${response.status}`);
     }
@@ -273,6 +293,7 @@ searchButton.addEventListener("click", async () => {
   }
 
   hideSuggestions();
+  clearResults();
   searchButton.disabled = true;
   locationInput.disabled = true;
   radiusSelect.disabled = true;
@@ -289,6 +310,11 @@ searchButton.addEventListener("click", async () => {
       body: JSON.stringify({ location, radius_meters: radiusMeters }),
     });
 
+    if (response.status === 422) {
+      searchStatus.textContent = "Check the selected location and search radius.";
+      return;
+    }
+
     if (!response.ok) {
       throw new Error(`Search failed with status ${response.status}`);
     }
@@ -299,8 +325,8 @@ searchButton.addEventListener("click", async () => {
       places.length === 0 ? "No places found." : "Search complete.";
   } catch (error) {
     console.error(error);
-    resultsSection.hidden = true;
-    searchStatus.textContent = "Search is unavailable. Please try again.";
+    clearResults();
+    searchStatus.textContent = "Search is temporarily unavailable. Please try again.";
   } finally {
     searchButton.disabled = false;
     locationInput.disabled = false;
@@ -310,7 +336,7 @@ searchButton.addEventListener("click", async () => {
 
 locationInput.addEventListener("input", () => {
   selectedLocation = null;
-  resultsSection.hidden = true;
+  clearResults();
   hideSuggestions();
 
   if (autocompleteTimer !== null) {
@@ -346,7 +372,7 @@ locationInput.addEventListener("input", () => {
 });
 
 radiusSelect.addEventListener("change", () => {
-  resultsSection.hidden = true;
+  clearResults();
   const radiusLabel = formatRadius(Number(radiusSelect.value));
   searchStatus.textContent =
     selectedLocation === null

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.location import LocationSuggestion, SelectedLocation
 from app.domain.place import Coordinates
-from app.ports.location_provider import LocationProvider
+from app.ports.location_provider import LocationProvider, LocationProviderError
 
 
 GOOGLE_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete"
@@ -74,32 +74,35 @@ class GoogleLocationGateway(LocationProvider):
         if not session_token.strip():
             raise ValueError("Autocomplete session token must not be empty")
 
-        response = await self._http_client.post(
-            GOOGLE_AUTOCOMPLETE_URL,
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": self._api_key,
-                "X-Goog-FieldMask": GOOGLE_AUTOCOMPLETE_FIELD_MASK,
-            },
-            json={
-                "input": normalized_query,
-                "languageCode": "en",
-                "regionCode": "ca",
-                "sessionToken": session_token,
-                "locationBias": {
-                    "circle": {
-                        "center": {
-                            "latitude": TORONTO_BIAS_CENTER.latitude,
-                            "longitude": TORONTO_BIAS_CENTER.longitude,
-                        },
-                        "radius": float(TORONTO_BIAS_RADIUS_METERS),
-                    }
+        try:
+            response = await self._http_client.post(
+                GOOGLE_AUTOCOMPLETE_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": self._api_key,
+                    "X-Goog-FieldMask": GOOGLE_AUTOCOMPLETE_FIELD_MASK,
                 },
-            },
-        )
-        response.raise_for_status()
+                json={
+                    "input": normalized_query,
+                    "languageCode": "en",
+                    "regionCode": "ca",
+                    "sessionToken": session_token,
+                    "locationBias": {
+                        "circle": {
+                            "center": {
+                                "latitude": TORONTO_BIAS_CENTER.latitude,
+                                "longitude": TORONTO_BIAS_CENTER.longitude,
+                            },
+                            "radius": float(TORONTO_BIAS_RADIUS_METERS),
+                        }
+                    },
+                },
+            )
+            response.raise_for_status()
+            google_response = GoogleAutocompleteResponse.model_validate(response.json())
+        except (httpx.HTTPError, ValueError) as error:
+            raise LocationProviderError("Google autocomplete failed") from error
 
-        google_response = GoogleAutocompleteResponse.model_validate(response.json())
         return [
             LocationSuggestion(
                 provider="google",
@@ -122,20 +125,22 @@ class GoogleLocationGateway(LocationProvider):
             raise ValueError("Autocomplete session token must not be empty")
 
         place_id = quote(suggestion.provider_place_id, safe="")
-        response = await self._http_client.get(
-            f"https://places.googleapis.com/v1/places/{place_id}",
-            params={"sessionToken": session_token},
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": self._api_key,
-                "X-Goog-FieldMask": GOOGLE_PLACE_DETAILS_FIELD_MASK,
-            },
-        )
-        response.raise_for_status()
-
-        details = GooglePlaceDetailsResponse.model_validate(response.json())
-        if details.id != suggestion.provider_place_id:
-            raise ValueError("Google returned details for an unexpected place ID")
+        try:
+            response = await self._http_client.get(
+                f"https://places.googleapis.com/v1/places/{place_id}",
+                params={"sessionToken": session_token},
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": self._api_key,
+                    "X-Goog-FieldMask": GOOGLE_PLACE_DETAILS_FIELD_MASK,
+                },
+            )
+            response.raise_for_status()
+            details = GooglePlaceDetailsResponse.model_validate(response.json())
+            if details.id != suggestion.provider_place_id:
+                raise ValueError("Google returned details for an unexpected place ID")
+        except (httpx.HTTPError, ValueError) as error:
+            raise LocationProviderError("Google place resolution failed") from error
 
         return SelectedLocation(
             label=suggestion.label,

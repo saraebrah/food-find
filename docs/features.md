@@ -28,7 +28,31 @@ The initial browser UI uses a small deferred JavaScript file. It attaches the AP
 - Provider values are inserted with DOM text properties rather than interpreted as HTML.
 - The result count and search status are announced through visible text and an ARIA live region.
 
-The Phase 1 interface includes brief loading, empty, and failure messages so it never appears stuck. More complete state design and error recovery are scheduled for Phase 2.
+Phase 2 keeps these states explicit and recoverable without adding a frontend state-management framework.
+
+## Search feedback and recovery
+
+### Current behavior
+
+- Starting a valid search clears results from the previous search before making the request.
+- Changing the location or radius clears previous results without starting another search.
+- The status region reports when location suggestions, location resolution, or nearby search are in progress.
+- An empty nearby-search response leaves the result list hidden and displays a no-results message.
+- Browser-detected invalid coordinates or radius values display guidance without calling the nearby-place provider.
+- API validation failures display input guidance, while provider or network failures display a temporary-unavailability message.
+- Provider-specific transport and response errors become provider-neutral errors at the adapter boundary.
+- The API returns a safe `502` response for provider failures without exposing Google response details.
+- Controls are restored after successful, invalid, empty, or failed search requests.
+
+No state-management framework is used. The current interface has one result-clearing helper and direct status updates appropriate to the size of the page.
+
+### Acceptance criteria
+
+- Old result elements and counts are removed when a new search begins or search inputs change.
+- No-results, invalid-input, and provider-failure states have different visible messages.
+- A provider failure returns HTTP `502` with `Cache-Control: no-store` and no provider error details.
+- Automated provider-failure tests use fakes or mocked HTTP responses and never call Google.
+- A failed operation does not leave the location, radius, or search controls permanently disabled.
 
 ## Decimal-coordinate location entry
 

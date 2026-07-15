@@ -179,4 +179,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Define complete loading, provider-error, validation-error, and no-results states for the location and nearby-search flow.
+Show the essential available information for each nearby-search result while keeping provider attribution visible.

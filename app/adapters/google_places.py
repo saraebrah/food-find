@@ -4,7 +4,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.place import Coordinates, Place
-from app.ports.place_provider import PlaceProvider
+from app.ports.place_provider import PlaceProvider, PlaceProviderError
 
 
 GOOGLE_NEARBY_SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby"
@@ -67,30 +67,32 @@ class GooglePlacesGateway(PlaceProvider):
         if not 0 < radius_meters <= 50_000:
             raise ValueError("Radius must be greater than zero and at most 50,000 metres")
 
-        response = await self._http_client.post(
-            GOOGLE_NEARBY_SEARCH_URL,
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": self._api_key,
-                "X-Goog-FieldMask": GOOGLE_FIELD_MASK,
-            },
-            json={
-                "includedTypes": list(included_types),
-                "maxResultCount": 20,
-                "locationRestriction": {
-                    "circle": {
-                        "center": {
-                            "latitude": latitude,
-                            "longitude": longitude,
-                        },
-                        "radius": float(radius_meters),
-                    }
+        try:
+            response = await self._http_client.post(
+                GOOGLE_NEARBY_SEARCH_URL,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": self._api_key,
+                    "X-Goog-FieldMask": GOOGLE_FIELD_MASK,
                 },
-            },
-        )
-        response.raise_for_status()
-
-        google_response = GoogleNearbySearchResponse.model_validate(response.json())
+                json={
+                    "includedTypes": list(included_types),
+                    "maxResultCount": 20,
+                    "locationRestriction": {
+                        "circle": {
+                            "center": {
+                                "latitude": latitude,
+                                "longitude": longitude,
+                            },
+                            "radius": float(radius_meters),
+                        }
+                    },
+                },
+            )
+            response.raise_for_status()
+            google_response = GoogleNearbySearchResponse.model_validate(response.json())
+        except (httpx.HTTPError, ValueError) as error:
+            raise PlaceProviderError("Google Places search failed") from error
 
         return [self._to_place(place) for place in google_response.places]
 

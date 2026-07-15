@@ -6,6 +6,7 @@ import pytest
 from app.adapters.google_locations import GoogleLocationGateway
 from app.domain.location import LocationSuggestion, SelectedLocation
 from app.domain.place import Coordinates
+from app.ports.location_provider import LocationProviderError
 
 
 SESSION_TOKEN = "550e8400-e29b-41d4-a716-446655440000"
@@ -123,7 +124,7 @@ async def test_resolve_uses_place_details_and_returns_selected_location() -> Non
 
 
 @pytest.mark.anyio
-async def test_suggest_raises_for_google_error_response() -> None:
+async def test_suggest_translates_google_error_response() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, request=request, json={"error": {"message": "quota"}})
 
@@ -134,5 +135,5 @@ async def test_suggest_raises_for_google_error_response() -> None:
             http_client=http_client,
         )
 
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(LocationProviderError):
             await gateway.suggest(query="Union Station", session_token=SESSION_TOKEN)

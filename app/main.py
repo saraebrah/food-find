@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -19,8 +19,8 @@ from app.api.location_models import (
 from app.api.search_models import SearchPlacesRequest
 from app.application.search_places import SearchPlaces
 from app.domain.place import Place
-from app.ports.location_provider import LocationProvider
-from app.ports.place_provider import PlaceProvider
+from app.ports.location_provider import LocationProvider, LocationProviderError
+from app.ports.place_provider import PlaceProvider, PlaceProviderError
 from app.settings import Settings
 
 
@@ -63,7 +63,15 @@ async def search_places(
 ) -> list[Place]:
     response.headers["Cache-Control"] = "no-store"
     search = SearchPlaces(place_provider=place_provider)
-    return list(await search.execute(location=search_request.location.to_domain()))
+    criteria = search_request.to_domain()
+    try:
+        return list(await search.execute(criteria=criteria))
+    except PlaceProviderError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Place search is temporarily unavailable",
+            headers={"Cache-Control": "no-store"},
+        ) from error
 
 
 @app.post("/api/locations/autocomplete")
@@ -73,10 +81,17 @@ async def autocomplete_locations(
     location_provider: Annotated[LocationProvider, Depends(get_location_provider)],
 ) -> list[LocationSuggestionResponse]:
     response.headers["Cache-Control"] = "no-store"
-    suggestions = await location_provider.suggest(
-        query=autocomplete_request.query,
-        session_token=str(autocomplete_request.session_token),
-    )
+    try:
+        suggestions = await location_provider.suggest(
+            query=autocomplete_request.query,
+            session_token=str(autocomplete_request.session_token),
+        )
+    except LocationProviderError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Location service is temporarily unavailable",
+            headers={"Cache-Control": "no-store"},
+        ) from error
     return [
         LocationSuggestionResponse.from_domain(suggestion)
         for suggestion in suggestions
@@ -90,8 +105,15 @@ async def resolve_location(
     location_provider: Annotated[LocationProvider, Depends(get_location_provider)],
 ) -> SelectedLocationResponse:
     response.headers["Cache-Control"] = "no-store"
-    location = await location_provider.resolve(
-        suggestion=resolve_request.to_suggestion(),
-        session_token=str(resolve_request.session_token),
-    )
+    try:
+        location = await location_provider.resolve(
+            suggestion=resolve_request.to_suggestion(),
+            session_token=str(resolve_request.session_token),
+        )
+    except LocationProviderError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Location service is temporarily unavailable",
+            headers={"Cache-Control": "no-store"},
+        ) from error
     return SelectedLocationResponse.from_domain(location)

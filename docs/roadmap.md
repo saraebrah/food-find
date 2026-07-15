@@ -28,11 +28,11 @@ This phase comes first because it proves the central data flow and produces the 
 - **Priority:** P0
 - **Status:** In progress
 
-1. Let users enter or select a location.
+1. [x] Let users enter or select a location.
    - [x] **Step 1A:** Generalize search around a normalized selected location and accept decimal coordinates.
    - [x] **Step 1B:** Add Google place/address autocomplete and suggestion selection.
-2. Let users choose a radius.
-3. Add loading, error, and no-results states.
+2. [x] Let users choose a radius.
+3. [x] Add loading, error, and no-results states.
 4. Show essential information for each result.
 5. Add place details.
 6. Add website, phone, and Google Maps direction actions.
@@ -122,7 +122,7 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Implement Phase 2 Step 2: let users choose a search radius and pass the validated radius through the generalized search use case to the place-provider port. Preserve the explicit search action and keep page loads, location edits, and radius edits free of automatic provider calls.
+Implement Phase 2 Step 4: show essential information for each result, using provider values only when available and keeping source attribution visible.
 
 ## Open decisions
 

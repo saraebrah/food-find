@@ -5,6 +5,7 @@ import pytest
 
 from app.adapters.google_places import GooglePlacesGateway
 from app.domain.place import Coordinates, Place
+from app.ports.place_provider import PlaceProviderError
 
 
 @pytest.mark.anyio
@@ -119,7 +120,7 @@ async def test_search_nearby_preserves_missing_optional_place_fields() -> None:
 
 
 @pytest.mark.anyio
-async def test_search_nearby_raises_for_google_error_response() -> None:
+async def test_search_nearby_translates_google_error_response() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         return httpx.Response(429, request=request, json={"error": {"message": "quota"}})
 
@@ -127,7 +128,7 @@ async def test_search_nearby_raises_for_google_error_response() -> None:
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
 
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(PlaceProviderError):
             await gateway.search_nearby(
                 latitude=43.6453,
                 longitude=-79.3806,

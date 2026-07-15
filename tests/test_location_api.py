@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.domain.location import LocationSuggestion, SelectedLocation
 from app.domain.place import Coordinates
 from app.main import app, get_location_provider
+from app.ports.location_provider import LocationProviderError
 
 
 SESSION_TOKEN = "550e8400-e29b-41d4-a716-446655440000"
@@ -46,6 +47,24 @@ class RecordingLocationProvider:
             provider=suggestion.provider,
             provider_place_id=suggestion.provider_place_id,
         )
+
+
+class FailingLocationProvider:
+    async def suggest(
+        self,
+        *,
+        query: str,
+        session_token: str,
+    ) -> Sequence[LocationSuggestion]:
+        raise LocationProviderError("private provider details")
+
+    async def resolve(
+        self,
+        *,
+        suggestion: LocationSuggestion,
+        session_token: str,
+    ) -> SelectedLocation:
+        raise LocationProviderError("private provider details")
 
 
 @pytest.fixture
@@ -140,6 +159,38 @@ def test_resolve_returns_normalized_selected_location(client: TestClient) -> Non
         "provider": "google",
         "provider_place_id": "google-location-1",
     }
+
+
+@pytest.mark.parametrize(
+    ("path", "request_json"),
+    (
+        (
+            "/api/locations/autocomplete",
+            {"query": "Union Station", "session_token": SESSION_TOKEN},
+        ),
+        (
+            "/api/locations/resolve",
+            {
+                "provider_place_id": "google-location-1",
+                "label": "Union Station, Toronto",
+                "session_token": SESSION_TOKEN,
+            },
+        ),
+    ),
+)
+def test_location_endpoints_return_safe_provider_error(
+    client: TestClient,
+    path: str,
+    request_json: dict[str, str],
+) -> None:
+    app.dependency_overrides[get_location_provider] = lambda: FailingLocationProvider()
+
+    response = client.post(path, json=request_json)
+
+    assert response.status_code == 502
+    assert response.headers["Cache-Control"] == "no-store"
+    assert response.json() == {"detail": "Location service is temporarily unavailable"}
+    assert "private provider details" not in response.text
 
 
 def test_autocomplete_rejects_non_v4_session_token(client: TestClient) -> None:

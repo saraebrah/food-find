@@ -4,6 +4,10 @@ from typing import Protocol
 from app.domain.place import Place
 
 
+class PlaceProviderError(RuntimeError):
+    """A place provider could not complete a requested operation."""
+
+
 class PlaceProvider(Protocol):
     async def search_nearby(
         self,
