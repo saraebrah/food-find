@@ -233,15 +233,150 @@ button:disabled {
   font-weight: 650;
 }
 
+.place-distance {
+  padding-top: 0.45rem;
+  color: #4d4c45;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
 .place-address {
   padding-top: 0.65rem;
   color: #4d4c45;
+}
+
+.place-status-warning {
+  padding-top: 0.65rem;
+  color: #7a4d00;
+  font-weight: 700;
+}
+
+.place-missing {
+  padding-top: 0.55rem;
+  color: #77756b;
+  font-size: 0.9rem;
 }
 
 .place-source {
   padding-top: 0.65rem;
   color: #77756b;
   font-size: 0.8rem;
+}
+
+.place-details-button {
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.85rem;
+  background: #e9efdf;
+  color: #30451f;
+  font-size: 0.9rem;
+}
+
+.place-details-button:hover:not(:disabled) {
+  background: #dce7cc;
+}
+
+.place-details {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2ded2;
+}
+
+.place-details p {
+  padding-top: 0.55rem;
+}
+
+.place-details p:first-child {
+  padding-top: 0;
+}
+
+.place-rating,
+.place-open-status {
+  color: #30451f;
+  font-weight: 700;
+}
+
+.place-detail-heading {
+  margin: 0;
+  padding-top: 0.8rem;
+  font-size: 0.95rem;
+}
+
+.place-hours {
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+  color: #4d4c45;
+  font-size: 0.9rem;
+}
+
+.place-hours-row + .place-hours-row {
+  padding-top: 0.2rem;
+}
+
+.place-phone,
+.place-website {
+  color: #4d4c45;
+  overflow-wrap: anywhere;
+}
+
+.place-website-link {
+  color: #3f562b;
+  font-weight: 650;
+}
+
+.place-phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.place-action {
+  display: inline-block;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: #3f562b;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.place-action:hover {
+  background: #2f421f;
+}
+
+.place-action:focus-visible {
+  outline: 3px solid #9ab474;
+  outline-offset: 3px;
+}
+
+.place-directions-link {
+  margin-top: 0.9rem;
+  margin-right: 0.5rem;
+}
+
+.place-call-action {
+  margin: 0;
+}
+
+.place-show-number-button {
+  padding: 0.55rem 0.85rem;
+  background: #e9efdf;
+  color: #30451f;
+  font-size: 0.9rem;
+}
+
+.place-show-number-button:hover:not(:disabled) {
+  background: #dce7cc;
+}
+
+.place-detail-status {
+  color: #5a594f;
+}
+
+.place-detail-error {
+  color: #8a2f24;
+  font-weight: 650;
 }
 
 @media (max-width: 36rem) {
@@ -256,5 +391,15 @@ button:disabled {
 
   button {
     width: 100%;
+  }
+
+  .place-action {
+    box-sizing: border-box;
+    width: 100%;
+    text-align: center;
+  }
+
+  .place-directions-link {
+    margin-right: 0;
   }
 }

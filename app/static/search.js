@@ -26,6 +26,8 @@ let selectedLocation = parseCoordinates(locationInput.value);
 let autocompleteTimer = null;
 let autocompleteController = null;
 let sessionToken = crypto.randomUUID();
+const detailsByPlace = new Map();
+const detailRequestsByPlace = new Map();
 
 function parseCoordinates(value) {
   const parts = value.split(",");
@@ -77,6 +79,11 @@ function hideSuggestions() {
 }
 
 function clearResults() {
+  for (const request of detailRequestsByPlace.values()) {
+    request.controller.abort();
+  }
+  detailRequestsByPlace.clear();
+  detailsByPlace.clear();
   placeResults.replaceChildren();
   resultCount.textContent = "";
   resultsSection.hidden = true;
@@ -98,6 +105,298 @@ function formatRadius(radiusMeters) {
   return `${radiusMeters / 1_000} km`;
 }
 
+function formatDistance(distanceMeters) {
+  if (!Number.isFinite(distanceMeters) || distanceMeters < 0) {
+    return "Distance unavailable";
+  }
+
+  if (distanceMeters < 1_000) {
+    return `${Math.round(distanceMeters)} m away`;
+  }
+
+  const distanceKilometers = distanceMeters / 1_000;
+  const decimalPlaces = distanceKilometers < 10 ? 1 : 0;
+  return `${distanceKilometers.toFixed(decimalPlaces)} km away`;
+}
+
+function placeKey(place) {
+  return `${place.provider}:${place.provider_place_id}`;
+}
+
+function phoneHref(phoneNumber) {
+  const prefix = phoneNumber.trim().startsWith("+") ? "+" : "";
+  const dialableNumber = phoneNumber.replace(/[^\d*#;,]/g, "");
+  return dialableNumber === "" ? null : `tel:${prefix}${dialableNumber}`;
+}
+
+function websiteHref(websiteUri) {
+  if (typeof websiteUri !== "string" || websiteUri.trim() === "") {
+    return null;
+  }
+
+  try {
+    const url = new URL(websiteUri);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function directionsHref(place) {
+  const latitude = place.coordinates?.latitude;
+  const longitude = place.coordinates?.longitude;
+  const hasCoordinates =
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180;
+  const destination = hasCoordinates
+    ? `${latitude},${longitude}`
+    : place.address || place.name;
+
+  if (!destination) {
+    return null;
+  }
+
+  const url = new URL("https://www.google.com/maps/dir/");
+  url.searchParams.set("api", "1");
+  url.searchParams.set("destination", destination);
+  if (
+    place.provider === "google" &&
+    typeof place.provider_place_id === "string" &&
+    place.provider_place_id !== ""
+  ) {
+    url.searchParams.set("destination_place_id", place.provider_place_id);
+  }
+  return url.href;
+}
+
+function renderPlaceDetails(container, details, businessStatus) {
+  container.replaceChildren();
+  container.dataset.state = "loaded";
+
+  if (Number.isFinite(details.rating)) {
+    const ratingCount = Number.isInteger(details.user_rating_count)
+      ? ` from ${details.user_rating_count.toLocaleString()} ratings`
+      : "";
+    addText(
+      container,
+      "p",
+      "place-rating",
+      `${providerName(details.provider)} rating: ${details.rating}/5${ratingCount}`,
+    );
+  } else {
+    addText(container, "p", "place-missing", "Rating unavailable");
+  }
+
+  const openStatus =
+    details.open_now === true
+      ? "Open now"
+      : details.open_now === false
+        ? "Closed now"
+        : "Current open status unavailable";
+  addText(
+    container,
+    "p",
+    details.open_now == null ? "place-missing" : "place-open-status",
+    openStatus,
+  );
+
+  if (Array.isArray(details.opening_hours) && details.opening_hours.length > 0) {
+    addText(container, "h4", "place-detail-heading", "Hours");
+    const hoursList = document.createElement("ul");
+    hoursList.className = "place-hours";
+    for (const description of details.opening_hours) {
+      addText(hoursList, "li", "place-hours-row", description);
+    }
+    container.append(hoursList);
+  } else {
+    addText(container, "p", "place-missing", "Hours unavailable");
+  }
+
+  if (details.phone_number) {
+    const callHref = phoneHref(details.phone_number);
+    const phoneActions = document.createElement("div");
+    phoneActions.className = "place-phone-actions";
+
+    if (callHref !== null) {
+      const callLink = document.createElement("a");
+      callLink.className = "place-action place-call-action";
+      callLink.href = callHref;
+      callLink.textContent = businessStatus == null ? "Call to confirm" : "Call";
+      phoneActions.append(callLink);
+    }
+
+    const phoneNumber = document.createElement("p");
+    phoneNumber.id = `${container.id}-phone-number`;
+    phoneNumber.className = "place-phone";
+    phoneNumber.textContent = `Phone number: ${details.phone_number}`;
+    phoneNumber.hidden = true;
+
+    const showNumberButton = document.createElement("button");
+    showNumberButton.type = "button";
+    showNumberButton.className = "place-show-number-button";
+    showNumberButton.textContent = "Show number";
+    showNumberButton.setAttribute("aria-controls", phoneNumber.id);
+    showNumberButton.setAttribute("aria-expanded", "false");
+    showNumberButton.addEventListener("click", () => {
+      phoneNumber.hidden = !phoneNumber.hidden;
+      if (phoneNumber.hidden) {
+        showNumberButton.textContent = "Show number";
+        showNumberButton.setAttribute("aria-expanded", "false");
+      } else {
+        showNumberButton.textContent = "Hide number";
+        showNumberButton.setAttribute("aria-expanded", "true");
+      }
+    });
+
+    phoneActions.append(showNumberButton);
+    container.append(phoneActions, phoneNumber);
+  } else {
+    addText(container, "p", "place-missing", "Phone unavailable");
+  }
+
+  const safeWebsiteHref = websiteHref(details.website_uri);
+  if (safeWebsiteHref !== null) {
+    const websiteRow = document.createElement("p");
+    websiteRow.className = "place-website";
+    websiteRow.append("Website: ");
+
+    const websiteLink = document.createElement("a");
+    websiteLink.className = "place-website-link";
+    websiteLink.href = safeWebsiteHref;
+    websiteLink.target = "_blank";
+    websiteLink.rel = "noopener noreferrer";
+    websiteLink.textContent = "Visit website";
+    websiteRow.append(websiteLink);
+    container.append(websiteRow);
+  } else {
+    addText(container, "p", "place-missing", "Website unavailable");
+  }
+}
+
+async function requestPlaceDetails(place) {
+  const key = placeKey(place);
+  if (detailsByPlace.has(key)) {
+    return detailsByPlace.get(key);
+  }
+
+  if (detailRequestsByPlace.has(key)) {
+    return detailRequestsByPlace.get(key).promise;
+  }
+
+  const controller = new AbortController();
+  const promise = (async () => {
+    const response = await fetch("/api/places/details", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        provider: place.provider,
+        provider_place_id: place.provider_place_id,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Place details failed with status ${response.status}`);
+    }
+
+    const details = await response.json();
+    detailsByPlace.set(key, details);
+    return details;
+  })();
+
+  detailRequestsByPlace.set(key, { controller, promise });
+  try {
+    return await promise;
+  } finally {
+    if (detailRequestsByPlace.get(key)?.promise === promise) {
+      detailRequestsByPlace.delete(key);
+    }
+  }
+}
+
+function addDetailsControl(item, place, resultIndex) {
+  const detailsId = `place-details-${resultIndex}`;
+  const detailsContainer = document.createElement("div");
+  detailsContainer.id = detailsId;
+  detailsContainer.className = "place-details";
+  detailsContainer.hidden = true;
+  detailsContainer.setAttribute("aria-live", "polite");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "place-details-button";
+  button.textContent = "View details";
+  button.setAttribute("aria-controls", detailsId);
+  button.setAttribute("aria-expanded", "false");
+
+  button.addEventListener("click", async () => {
+    if (!detailsContainer.hidden && detailsContainer.dataset.state !== "error") {
+      detailsContainer.hidden = true;
+      button.textContent = "View details";
+      button.setAttribute("aria-expanded", "false");
+      return;
+    }
+
+    detailsContainer.hidden = false;
+    detailsContainer.dataset.state = "loading";
+    detailsContainer.replaceChildren();
+    addText(detailsContainer, "p", "place-detail-status", "Loading details…");
+    button.disabled = true;
+    button.textContent = "Loading…";
+    button.setAttribute("aria-expanded", "true");
+
+    try {
+      const details = await requestPlaceDetails(place);
+      renderPlaceDetails(detailsContainer, details, place.business_status);
+      button.textContent = "Hide details";
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      console.error(error);
+      detailsContainer.dataset.state = "error";
+      detailsContainer.replaceChildren();
+      addText(
+        detailsContainer,
+        "p",
+        "place-detail-error",
+        "Details are temporarily unavailable. Please try again.",
+      );
+      button.textContent = "Try again";
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  item.append(button, detailsContainer);
+}
+
+function addDirectionsAction(item, place) {
+  const href = directionsHref(place);
+  if (href === null) {
+    return;
+  }
+
+  const directionsLink = document.createElement("a");
+  directionsLink.className = "place-action place-directions-link";
+  directionsLink.href = href;
+  directionsLink.target = "_blank";
+  directionsLink.rel = "noopener noreferrer";
+  directionsLink.textContent = "Get directions";
+  item.append(directionsLink);
+}
+
 function renderPlaces(places) {
   clearResults();
 
@@ -105,22 +404,41 @@ function renderPlaces(places) {
     return;
   }
 
-  for (const place of places) {
+  for (const [resultIndex, place] of places.entries()) {
     const item = document.createElement("li");
     item.className = "place-card";
 
     addText(item, "h3", "place-name", place.name);
 
-    const category = place.category || place.category_code;
-    if (category) {
-      addText(item, "p", "place-category", category);
-    }
+    const category = place.category || place.category_code || "Category unavailable";
+    addText(
+      item,
+      "p",
+      place.category || place.category_code ? "place-category" : "place-missing",
+      category,
+    );
 
-    if (place.address) {
-      addText(item, "p", "place-address", place.address);
+    addText(item, "p", "place-distance", formatDistance(place.distance_meters));
+
+    addText(
+      item,
+      "p",
+      place.address ? "place-address" : "place-missing",
+      place.address || "Address unavailable",
+    );
+
+    if (place.business_status == null) {
+      addText(
+        item,
+        "p",
+        "place-status-warning",
+        "Operational status unconfirmed. Call to confirm before visiting.",
+      );
     }
 
     addText(item, "p", "place-source", `Source: ${providerName(place.provider)}`);
+    addDirectionsAction(item, place);
+    addDetailsControl(item, place, resultIndex);
     placeResults.append(item);
   }
 

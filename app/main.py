@@ -16,9 +16,14 @@ from app.api.location_models import (
     ResolveLocationRequest,
     SelectedLocationResponse,
 )
+from app.api.place_models import PlaceDetailsRequest
 from app.api.search_models import SearchPlacesRequest
+from app.application.get_place_details import (
+    GetPlaceDetails,
+    UnsupportedPlaceProviderError,
+)
 from app.application.search_places import SearchPlaces
-from app.domain.place import Place
+from app.domain.place import Place, PlaceDetails
 from app.ports.location_provider import LocationProvider, LocationProviderError
 from app.ports.place_provider import PlaceProvider, PlaceProviderError
 from app.settings import Settings
@@ -70,6 +75,33 @@ async def search_places(
         raise HTTPException(
             status_code=502,
             detail="Place search is temporarily unavailable",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+
+
+@app.post("/api/places/details")
+async def get_place_details(
+    details_request: PlaceDetailsRequest,
+    response: Response,
+    place_provider: Annotated[PlaceProvider, Depends(get_place_provider)],
+) -> PlaceDetails:
+    response.headers["Cache-Control"] = "no-store"
+    use_case = GetPlaceDetails(place_provider=place_provider)
+    try:
+        return await use_case.execute(
+            provider=details_request.provider,
+            provider_place_id=details_request.provider_place_id,
+        )
+    except UnsupportedPlaceProviderError as error:
+        raise HTTPException(
+            status_code=422,
+            detail="Unsupported place provider",
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    except PlaceProviderError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Place details are temporarily unavailable",
             headers={"Cache-Control": "no-store"},
         ) from error
 

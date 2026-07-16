@@ -31,11 +31,52 @@ class RecordingPlaceProvider:
                 "included_types": tuple(included_types),
             }
         )
-        return []
+        return [
+            Place(
+                provider="google",
+                provider_place_id="google-place-1",
+                name="Example Restaurant",
+                category="Restaurant",
+                category_code="restaurant",
+                address="1 Front Street, Toronto, ON",
+                coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+                business_status="operational",
+            ),
+            Place(
+                provider="google",
+                provider_place_id="google-place-2",
+                name="Temporarily Closed Restaurant",
+                category="Restaurant",
+                category_code="restaurant",
+                address="2 Front Street, Toronto, ON",
+                coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+                business_status="temporarily_closed",
+            ),
+            Place(
+                provider="google",
+                provider_place_id="google-place-3",
+                name="Permanently Closed Restaurant",
+                category="Restaurant",
+                category_code="restaurant",
+                address="3 Front Street, Toronto, ON",
+                coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+                business_status="permanently_closed",
+            ),
+            Place(
+                provider="google",
+                provider_place_id="google-place-4",
+                name="Unconfirmed Restaurant",
+                category="Restaurant",
+                category_code="restaurant",
+                address="4 Front Street, Toronto, ON",
+                coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+                business_status=None,
+            ),
+        ]
 
 
 @pytest.mark.anyio
-async def test_search_uses_selected_location_coordinates() -> None:
+async def test_search_uses_selected_location_and_adds_distance() -> None:
     provider = RecordingPlaceProvider()
     search = SearchPlaces(place_provider=provider)
     location = SelectedLocation(
@@ -46,7 +87,30 @@ async def test_search_uses_selected_location_coordinates() -> None:
 
     places = await search.execute(criteria=criteria)
 
-    assert places == []
+    assert places == [
+        Place(
+            provider="google",
+            provider_place_id="google-place-1",
+            name="Example Restaurant",
+            category="Restaurant",
+            category_code="restaurant",
+            address="1 Front Street, Toronto, ON",
+            coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+            business_status="operational",
+            distance_meters=14,
+        ),
+        Place(
+            provider="google",
+            provider_place_id="google-place-4",
+            name="Unconfirmed Restaurant",
+            category="Restaurant",
+            category_code="restaurant",
+            address="4 Front Street, Toronto, ON",
+            coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+            business_status=None,
+            distance_meters=14,
+        ),
+    ]
     assert provider.searches == [
         {
             "latitude": 43.6453,

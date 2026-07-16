@@ -105,6 +105,8 @@ Provider adapters return FoodFind-owned `Place` objects through the `PlaceProvid
 - provider-supplied category label and category code
 - address
 - coordinates
+- normalized business status
+- straight-line distance from the selected search location, when attached by the search use case
 
 Google response models remain inside the Google adapter and are converted to the internal model before results leave that boundary. Optional provider fields remain `None` when unavailable instead of being inferred.
 
@@ -116,6 +118,59 @@ Category labels and codes are still provider-supplied at this stage. A shared Fo
 - Another provider can implement the same port and return the same internal model.
 - Immutable domain objects make one normalized provider response a stable snapshot for later application and display steps.
 - Delaying a shared category taxonomy avoids inventing filtering behavior before that feature is built.
+
+## Nearby summary fields and on-demand details
+
+- **Date:** 2026-07-15
+- **Status:** Current approach
+
+### Decision
+
+Nearby-search result summaries contain name, category, address, straight-line distance, and provider attribution. Google supplies the place fields in the existing nearby-search request, while `SearchPlaces` calculates distance locally from the selected-location snapshot and result coordinates.
+
+The first result page uses only the useful fields required for its summaries and keeps the nearby-search field mask within **Nearby Search Pro**. Pro availability alone is not a reason to request or display a field.
+
+Rating, rating count, current opening hours, phone, and website are requested through **Place Details Enterprise** only when a user explicitly opens a result. Opening one result does not trigger detail requests for the other results.
+
+The detail adapter requests only `id`, `rating`, `userRatingCount`, `currentOpeningHours`, `regularOpeningHours`, `nationalPhoneNumber`, `internationalPhoneNumber`, and `websiteUri`. It prefers the current seven-day hours, uses regular hours only as a fallback, and maps the response into FoodFind's provider-independent `PlaceDetails` model.
+
+The browser caches successful details only while the current result list is rendered. Closing and reopening a result reuses that response. A location/radius change or new search clears the browser cache and aborts any in-flight detail request. Detail API responses use `Cache-Control: no-store`; FoodFind does not add permanent provider-data storage.
+
+Service options such as dine-in, takeout, and delivery require **Enterprise + Atmosphere** fields. They are deferred until the relevant Phase 3 filters are implemented and are not part of the Phase 2 detail request.
+
+`businessStatus` is normalized at the adapter boundary. `SearchPlaces` excludes businesses explicitly reported temporarily or permanently closed. A missing status does not prove closure, so the place remains in results with an operational-status warning. `OPERATIONAL` means the business has not been reported closed; it must not be presented as “open now.” Current open status requires opening-hours data.
+
+When details are retrieved for a place whose operational status is unconfirmed, FoodFind shows a **Call to confirm** action. Other places use **Call**. The full number is hidden by default but can be revealed as plain, copyable text with **Show number** and concealed again with **Hide number**. Revealing it is entirely a browser display change over the already-fetched details and creates no provider request.
+
+The call action uses a `tel:` link so supported phones and configured desktop calling applications can handle it. The link can populate a device's dialer, but a web page cannot bypass the operating system's final confirmation and place a telephone call automatically.
+
+Result actions are browser links rather than additional provider operations:
+
+- Phone links use a sanitized `tel:` value. The provider-supplied display number is available through an explicit show/hide control rather than occupying space by default.
+- Website values become links only when they use the `http:` or `https:` scheme. They open in a separate tab with `noopener noreferrer`.
+- Directions use `https://www.google.com/maps/dir/?api=1` with the result coordinates as the destination. Google results also include their Google place ID to identify the establishment precisely; a future non-Google result can still use its coordinates without mislabelling another provider's ID as a Google ID.
+- The directions URL omits origin and travel mode so Google Maps can use or request the user's starting point and offer relevant travel choices.
+
+Google Maps URLs do not require an API key and do not create another Places API request. FoodFind therefore does not request Google's `googleMapsLinks` field solely to implement directions.
+
+### Rationale
+
+- Result summaries become useful without creating another provider call.
+- Keeping the first page within Pro preserves its larger free monthly allowance and lower paid rate.
+- Fetching Enterprise details on demand aligns provider cost with demonstrated user interest.
+- Calculated straight-line distance is provider-independent and can support later distance sorting.
+- Filtering normalized closure values in the application layer gives every future provider the same result policy.
+- Retaining unknown-status places avoids treating missing provider data as evidence that a business is closed.
+- On-demand details limit latency, response size, and use of Google's higher billing tier.
+- A later provider can map its closure values into the same FoodFind status values.
+- Link actions reuse already-available summary or detail values and do not increase provider cost.
+
+### Current provider references
+
+- Google lists name, address, coordinates, and `businessStatus` in the Nearby Search Pro field group: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search).
+- Google lists rating and opening-hours fields in the Nearby Search Enterprise field group: [Place data fields](https://developers.google.com/maps/documentation/places/web-service/data-fields).
+- Google lists dine-in, takeout, delivery, and similar service options in the Enterprise + Atmosphere field group: [Place data fields](https://developers.google.com/maps/documentation/places/web-service/data-fields).
+- Google documents cross-platform directions URLs and confirms that Maps URLs do not require an API key: [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started).
 
 ## Fixed Toronto search lifecycle
 
@@ -253,3 +308,36 @@ The browser distinguishes invalid input from temporary provider or network failu
 - Core routes and future provider adapters do not need Google-specific error handling.
 - Provider response details are not exposed to the browser.
 - The current UI stays simple while giving each operation a predictable recovery path.
+
+## Filters and smart search before the map
+
+- **Date:** 2026-07-15
+- **Status:** Current approach
+
+### Decision
+
+After completing basic place discovery, FoodFind will build in this order:
+
+1. Manual filters and sorting
+2. Smart search that translates requests into the manual filter state
+3. The map experience and device current location together
+4. First-version cleanup
+
+Filters will be implemented one at a time. Before adding each one, confirm whether Google supports it, which billing tier its fields require, how missing values behave, and whether it can be applied by Google or only to the returned result set.
+
+Current location remains combined with the map phase. Delaying the map therefore also delays device-location permission, while autocomplete, addresses, and coordinate entry continue to provide working manual location selection.
+
+### Rationale
+
+- Filters determine whether FoodFind can return meaningfully relevant choices and establish the search state that later features need.
+- Smart search can reuse the proven filter state instead of creating a parallel search implementation.
+- The existing list already provides distance, address, details, calls, websites, and Google Maps directions, so it remains usable without an embedded map.
+- Building the map after the search model is stable reduces simultaneous work on provider behavior, client state, and marker/list synchronization.
+- Combining map selection and current location completes the spatial experience in one phase while keeping every location source normalized through the same domain model.
+
+### Tradeoffs
+
+- Users will not initially have embedded spatial context or map-based location selection.
+- Device current location arrives later because it is grouped with the map.
+- Filter implementation may change provider fields and billing tiers before the map work begins.
+- Filters and smart search will make the browser state richer, so the project must decide whether to introduce SvelteKit before extending the temporary JavaScript interface substantially.

@@ -14,8 +14,10 @@ This file breaks the product into individual features, including expected behavi
 - The Google client and server-side API key are created only when the search endpoint is called.
 - The home page provides an explicit **Search** button.
 - While a search is active, the button is disabled to prevent duplicate requests.
-- Successful results appear in a list with the available name, category, address, and provider attribution.
-- Missing category or address values are omitted instead of inferred.
+- Successful results appear in a list with name, category, address, straight-line distance, and provider attribution.
+- Businesses explicitly reported temporarily or permanently closed are excluded from results.
+- Results with missing business status remain visible with an operational-status warning.
+- Missing category or address values are identified as unavailable instead of inferred.
 
 The initial browser UI uses a small deferred JavaScript file. It attaches the API request only to the button's click event and does not run a search during page initialization.
 
@@ -75,7 +77,7 @@ No state-management framework is used. The current interface has one result-clea
 - Loading, reloading, or editing the location does not search automatically.
 - The submitted radius is validated and included in the normalized search criteria.
 
-Map selection remains in Phase 3, and device current location remains in Phase 5.
+Map selection and device current location remain together in Phase 5.
 
 ## Search radius
 
@@ -97,6 +99,54 @@ Map selection remains in Phase 3, and device current location remains in Phase 5
 - Radius values below 100 m or above 50 km return HTTP `422` and do not search.
 - Page load and reload do not search.
 - The result lifecycle cannot read a different radius after a search begins.
+
+## Result summaries
+
+### Current behavior
+
+- Each result displays its name, category, address, straight-line distance from the selected location, and provider attribution.
+- FoodFind calculates distance locally from the search origin and provider-supplied result coordinates; it does not make a routing request.
+- Google business status is normalized into provider-independent operational, temporarily closed, or permanently closed values.
+- The search use case removes explicitly temporary and permanent closures before results reach the API or browser.
+- Missing business status does not prove closure, so the result remains visible with the message: “Operational status unconfirmed. Call to confirm before visiting.”
+- An operational business is not labelled “open now” because business status is not the same as current opening hours.
+- Missing category, address, or distance values are identified as unavailable instead of guessed.
+- The nearby-search field mask remains in Google's Pro tier. Rating and current opening hours are deferred to the on-demand detail request in Step 5 instead of raising every nearby search to the Enterprise tier.
+- The first result page may request only useful fields that keep Nearby Search in the Pro tier. It does not request every Pro field merely because the field is available.
+- Enterprise fields are fetched only after the user explicitly opens a result.
+- Enterprise + Atmosphere service fields, including dine-in and takeout, are deferred until their Phase 3 filters are implemented.
+- Each result has a **View details** control. Opening it requests only that place's rating, rating count, current opening hours and open status, phone, and website.
+- A fetched detail response is cached in browser memory while the current result list remains rendered. Closing and reopening the same result does not make another request; changing the search clears the cache and aborts in-flight detail requests.
+- Ratings identify their provider, current open status remains distinct from operational business status, and unavailable detail values are labelled instead of inferred.
+- A detail failure stays within the opened card and offers a retry without removing the search results.
+- For an unconfirmed business with an available phone number, the details include a **Call to confirm** `tel:` action and an optional **Show number** control.
+- Available phone numbers are callable through `tel:` links. The action reads **Call to confirm** when operational status is unknown and **Call** otherwise.
+- The full phone number is hidden by default to keep the actions concise. **Show number** reveals a plain, copyable value and changes to **Hide number**; toggling it does not make a provider request.
+- Available `http:` or `https:` websites appear as a concise **Visit website** link and open in a new browser tab; the full provider URL is not displayed. Other URI schemes are not turned into links.
+- Every result with a usable destination has a **Get directions** action. It opens a universal Google Maps directions URL using the result coordinates and, for Google results, the Google place ID for more precise matching.
+- The directions link omits an origin so Google Maps can use the device's relevant starting location or ask the user for one. It does not force a travel mode.
+- Creating or opening an action does not call a FoodFind API endpoint or add another Google Places request.
+
+### Acceptance criteria
+
+- Distance is calculated from the immutable selected-location snapshot used for the search.
+- Provider adapters return normalized closure status rather than Google-specific status strings.
+- Explicitly temporary and permanently closed places do not reach the result cards.
+- Missing status produces an operational-status warning without treating the place as closed.
+- An unconfirmed place with an available phone number has a **Call to confirm** action and an on-demand copyable number.
+- On supported phones, the `tel:` link opens the dialer with the number populated; FoodFind does not claim that a browser can bypass the device's final call confirmation.
+- Selecting **Show number** reveals the already-fetched value without another detail request and **Hide number** conceals it again.
+- Provider attribution remains visible on every result.
+- Adding summary information does not create another Google request.
+- Loading the first result list never requests an Enterprise or Enterprise + Atmosphere field.
+- Opening one result produces at most one on-demand Enterprise detail request for that selected place, not one request for every search result.
+- Loading or reloading the page and rendering search summaries produce zero place-detail requests.
+- The place-detail endpoint and response use `Cache-Control: no-store`, and the API key remains only in the server-to-Google header.
+- Phone links contain only a sanitized dialable value, and unsupported website URI schemes are never assigned to link destinations.
+- Website and Google Maps links that open a new tab use `noopener noreferrer`.
+- A Google Maps directions URL includes `api=1`, an encoded destination, and the Google place ID when the result came from Google.
+- Rendering website, phone, or directions actions does not increase the place-provider call count.
+- Automated tests verify field mapping, distance calculation, API output, and missing-field text without calling Google.
 
 ## Place and address autocomplete
 
