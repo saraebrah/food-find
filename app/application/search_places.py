@@ -1,11 +1,15 @@
 from collections.abc import Sequence
+from dataclasses import replace
 
 from app.domain.place import Place
-from app.domain.search import SearchCriteria
+from app.domain.search import SearchCriteria, straight_line_distance_meters
 from app.ports.place_provider import PlaceProvider
 
 
 DEFAULT_SEARCH_TYPES = ("restaurant", "cafe")
+EXCLUDED_BUSINESS_STATUSES = frozenset(
+    ("temporarily_closed", "permanently_closed")
+)
 
 
 class SearchPlaces:
@@ -13,9 +17,20 @@ class SearchPlaces:
         self._place_provider = place_provider
 
     async def execute(self, *, criteria: SearchCriteria) -> Sequence[Place]:
-        return await self._place_provider.search_nearby(
+        places = await self._place_provider.search_nearby(
             latitude=criteria.location.coordinates.latitude,
             longitude=criteria.location.coordinates.longitude,
             radius_meters=criteria.radius_meters,
             included_types=DEFAULT_SEARCH_TYPES,
         )
+        return [
+            replace(
+                place,
+                distance_meters=straight_line_distance_meters(
+                    criteria.location.coordinates,
+                    place.coordinates,
+                ),
+            )
+            for place in places
+            if place.business_status not in EXCLUDED_BUSINESS_STATUSES
+        ]

@@ -179,4 +179,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Show the essential available information for each nearby-search result while keeping provider attribution visible.
+Define the shared filter and sorting state, then add supported filters incrementally.

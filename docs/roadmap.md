@@ -26,75 +26,74 @@ This phase comes first because it proves the central data flow and produces the 
 ## Phase 2 — Basic place discovery
 
 - **Priority:** P0
-- **Status:** In progress
+- **Status:** Complete
 
 1. [x] Let users enter or select a location.
    - [x] **Step 1A:** Generalize search around a normalized selected location and accept decimal coordinates.
    - [x] **Step 1B:** Add Google place/address autocomplete and suggestion selection.
 2. [x] Let users choose a radius.
 3. [x] Add loading, error, and no-results states.
-4. Show essential information for each result.
-5. Add place details.
-6. Add website, phone, and Google Maps direction actions.
+4. [x] Show an essential summary: name, category, address, straight-line distance, and source.
+   - Exclude businesses explicitly reported temporarily or permanently closed.
+   - Warn when operational status is unknown.
+5. [x] Add Enterprise place details on demand: rating, hours and open status, phone, and website when available.
+   - For an unconfirmed status, show an available phone number and **Call to confirm** action.
+6. [x] Add website, phone, and Google Maps direction actions.
 
 This phase turns the fixed search from Phase 1 into a usable discovery flow.
 
-## Phase 3 — Map experience
-
-- **Priority:** P0
-- **Status:** Not started
-
-1. Display results on a map.
-2. Let users select or adjust the search location on the map.
-3. Keep map markers and result-list items connected.
-4. Support selecting a business from either view.
-5. Update the map when the location or radius changes.
-
-The list and search behavior should work before map synchronization is added.
-
-## Phase 4 — Manual filters and sorting
+## Phase 3 — Manual filters and sorting
 
 - **Priority:** P0
 - **Status:** Not started
 
 Add filters incrementally:
 
-1. Place type
-2. Open now
-3. Minimum rating
-4. Cuisine
-5. Dine-in and takeout
-6. Common food
-7. Distance and rating sorting
+1. Establish one normalized filter and sorting state shared by the browser, API, and application.
+2. Place type
+3. Open now
+4. Minimum rating
+5. Cuisine
+6. Dine-in and takeout, introducing Enterprise + Atmosphere data only when these filters are built
+7. Common food
+8. Distance and rating sorting
 
-Manual controls establish the search model that smart search will later use. A filter should only be added when the selected provider can support it reliably.
+For each filter, first confirm provider support, billing tier, missing-data behavior, and whether it can be applied by the provider or only to the returned result set. Implement and verify one filter before moving to the next.
 
-## Phase 5 — Current location
+Manual controls establish the search model that smart search will later use. A filter should only be added when the selected provider can support it reliably. Enterprise + Atmosphere fields stay out of the result list and Phase 2 detail request until a Phase 3 filter actually needs them.
 
-- **Priority:** P1
-- **Status:** Not started
+Before the browser gains substantial filter state, decide whether this is the appropriate transition point from the temporary JavaScript interface to SvelteKit.
 
-1. Request browser location permission.
-2. Search around the user's position.
-3. Handle denied or unavailable permission.
-4. Keep manual location selection as a fallback.
+## Phase 4 — Smart search
 
-Current location is useful but does not need to block the selected-location search flow.
-
-## Phase 6 — Smart search
-
-- **Priority:** P1
+- **Priority:** P0
 - **Status:** Not started
 
 1. Accept keywords and natural-language requests.
-2. Convert requests into the existing manual filter state.
+2. Convert supported requests into the existing manual filter state.
 3. Show interpreted criteria as editable controls.
 4. Identify unsupported or ambiguous criteria.
 5. Explain why results matched.
 
-Smart search should reuse the proven manual search behavior rather than introduce a separate search system.
+Smart search is a translator into the proven manual search model, not a separate search system. Start with deterministic interpretation of supported criteria; add more complex language handling only when needed.
 
-## Phase 7 — First-version cleanup
+## Phase 5 — Map and current location
+
+- **Priority:** P0
+- **Status:** Not started
+
+1. Display the current results on a map.
+2. Keep map markers and result-list items connected.
+3. Support selecting a business from either view.
+4. Let users select or adjust the search location on the map.
+5. Add **Use current location** and request browser permission only after the user selects it.
+6. Recenter and search around the user's position.
+7. Handle denied, inaccurate, or unavailable location while keeping manual selection as a fallback.
+8. Update the map when the location or radius changes.
+
+This phase completes the spatial experience after the result criteria are useful and proven. Every map click and device location still produces the same normalized selected-location model used by coordinates and autocomplete.
+
+## Phase 6 — First-version cleanup
 
 - **Priority:** P1
 - **Status:** Not started
@@ -122,9 +121,9 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Implement Phase 2 Step 4: show essential information for each result, using provider values only when available and keeping source attribution visible.
+Start Phase 3 Step 1: define the normalized filter and sorting state, then choose the first filter only after confirming Google support, billing impact, and missing-data behavior.
 
 ## Open decisions
 
 - Map provider
-- Whether current-location support should move ahead of the map phase
+- Whether Phase 3 is the appropriate transition point from the temporary JavaScript interface to SvelteKit

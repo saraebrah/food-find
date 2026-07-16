@@ -212,11 +212,35 @@ This is different from passing individual values that might be reread at differe
 
 The radius control uses friendly labels such as `500 m` and `2 km`, but the API, domain, and provider port use metres consistently. Converting to one unit at the interface prevents each downstream layer from interpreting units differently.
 
+## Straight-line distance
+
+Google returns coordinates for each result, and FoodFind already knows the coordinates used as the search origin. The search use case applies the Haversine formula to those two coordinate pairs and attaches the resulting straight-line distance to the immutable result snapshot.
+
+This is geographic distance, not walking or driving distance. It requires no second provider request and gives later distance sorting a provider-independent value. Route and travel-time calculations can replace or supplement it in a later phase without changing the place-provider adapter.
+
+## Summary data vs place details
+
+A search can return up to twenty places, but the user may open only one or two. Result summaries therefore use a purposeful subset of Pro fields needed to scan the list. Richer Enterprise fields are reserved for an explicit place-detail request, and Enterprise + Atmosphere service data is deferred until later filters need it.
+
+This prevents a “fan-out” pattern where one search is immediately followed by a detail request for every result. The detail step can use the provider place ID already stored on each normalized result.
+
+Business status is still collected for filtering. The application removes places explicitly reported temporarily or permanently closed, but keeps places whose status is missing because missing data is not proof of closure. Those results receive a warning. When on-demand details supply a phone number, the warning offers a call action without fetching phone data for every result.
+
+The browser keeps a successful detail response in memory for as long as that result list remains on screen. This is a small interaction cache, not permanent provider-data storage. It prevents closing and reopening one card from repeating the same paid request. Starting another search clears it so a new result snapshot does not accidentally reuse old details.
+
 ## Safe DOM rendering
 
 The browser creates list elements and assigns provider values through `textContent`. Text content is displayed as text, even if an external value contains characters that resemble HTML.
 
 This is safer than building an HTML string from provider data and assigning it to `innerHTML`, which could cause untrusted markup to be interpreted by the browser.
+
+## Action URL vs API request
+
+An API request asks a service for data and returns a machine-readable response. A URL action sends the user to another application or page to complete an action. FoodFind's place-detail request is an API request; the phone, website, and **Get directions** links are URL actions.
+
+The distinction matters for cost and lifecycle behavior. Opening a Google Maps directions URL does not ask FoodFind to fetch a route and does not make another Places API request. It hands the destination to Google Maps, which handles the rest of the interaction. Similarly, a `tel:` URL asks the device to open an appropriate calling application with a phone number; the operating system normally requires the user to confirm the call. Showing or hiding the number is only a DOM display change over data FoodFind already fetched.
+
+External values still need validation before becoming links. FoodFind accepts only `http:` and `https:` website URLs, reduces telephone links to dialable characters, and builds directions parameters through the browser's URL encoder. Links that open a new tab also prevent the opened page from controlling the FoodFind page.
 
 ## Adapter / gateway pattern
 
