@@ -45,7 +45,9 @@ This phase turns the fixed search from Phase 1 into a usable discovery flow.
 ## Phase 3 — Manual filters and sorting
 
 - **Priority:** P0
-- **Status:** Not started
+- **Status:** In progress
+
+- [x] Transition the temporary browser interface to Svelte 5 and SvelteKit while preserving the completed Phase 2 behavior and request safeguards.
 
 Add filters incrementally:
 
@@ -61,8 +63,6 @@ Add filters incrementally:
 For each filter, first confirm provider support, billing tier, missing-data behavior, and whether it can be applied by the provider or only to the returned result set. Implement and verify one filter before moving to the next.
 
 Manual controls establish the search model that smart search will later use. A filter should only be added when the selected provider can support it reliably. Enterprise + Atmosphere fields stay out of the result list and Phase 2 detail request until a Phase 3 filter actually needs them.
-
-Before the browser gains substantial filter state, decide whether this is the appropriate transition point from the temporary JavaScript interface to SvelteKit.
 
 ## Phase 4 — Smart search
 
@@ -126,4 +126,3 @@ Start Phase 3 Step 1: define the normalized filter and sorting state, then choos
 ## Open decisions
 
 - Map provider
-- Whether Phase 3 is the appropriate transition point from the temporary JavaScript interface to SvelteKit
