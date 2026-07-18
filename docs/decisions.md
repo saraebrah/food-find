@@ -221,7 +221,7 @@ The previous `SearchFixedTorontoPlaces` class remains as a compatibility wrapper
 ## Phase 1 browser interface
 
 - **Date:** 2026-07-11
-- **Status:** Temporary Phase 1 approach
+- **Status:** Superseded by the SvelteKit frontend transition on 2026-07-18
 
 ### Decision
 
@@ -236,6 +236,46 @@ SvelteKit and the TypeScript frontend build system are deferred until the interf
 - Provider strings are assigned with `textContent`, not inserted as HTML.
 - A page reload returns to the initial state and does not repeat the previous search.
 - Automated backend and page tests continue to use fake or mocked providers.
+
+## SvelteKit frontend transition
+
+- **Date:** 2026-07-18
+- **Status:** Current approach
+
+### Decision
+
+Phase 3 begins by moving the active browser interface into a TypeScript frontend under `frontend/`, using Svelte 5 and SvelteKit. FastAPI remains the server-side API and the existing Python domain, application, provider, and route code does not change for this transition.
+
+The Svelte frontend preserves the completed Phase 2 behavior while separating it into focused pieces:
+
+- typed API request functions and provider-independent browser models
+- a location picker responsible for coordinate entry, debounced suggestions, and suggestion resolution
+- one page-level search lifecycle that snapshots the selected location and radius only after an explicit **Search** action
+- result cards that own their on-demand detail state and cache one successful detail response while the card remains rendered
+
+During local development, SvelteKit runs on port `5173` and proxies `/api` requests to FastAPI on port `8000`. This keeps browser requests same-origin from the frontend's perspective and keeps the Google API key entirely inside the Python server. The static adapter also produces a production build, but deployment and static-file serving are not being coupled into FastAPI during this transition.
+
+The previous Jinja template, CSS, and JavaScript remain temporarily as a fallback rather than being deleted during the migration. New product UI work belongs in the Svelte frontend.
+
+### Request safeguards
+
+- Rendering or reloading the Svelte page makes no location, nearby-search, or detail request.
+- Editing coordinates or changing radius clears stale results but does not search.
+- Autocomplete is debounced, aborts superseded requests, and ignores stale responses.
+- Each explicit search receives one immutable criteria snapshot and creates one nearby-search request.
+- Opening one result creates at most one successful detail request while that result card remains rendered; hide and reopen reuse it.
+- Vitest component tests and Playwright end-to-end tests mock FoodFind API responses and do not call Google.
+
+### Rationale
+
+- Phase 3 will introduce enough reusable controls and shared browser state to justify the preferred SvelteKit stack.
+- Keeping FastAPI as an API boundary avoids rewriting working backend behavior as part of a frontend migration.
+- Component boundaries make later filters, sorting, smart-search criteria, and map selection easier to add without replacing the Phase 2 request flow.
+- Preserving the old interface until parity is verified gives the project a simple fallback without maintaining it as the active path.
+
+### Known transition limitation
+
+As of 2026-07-18, `npm audit` reports one low-severity advisory in the transitive `cookie` package used by the current SvelteKit `2.70.0` toolchain. There are no moderate, high, or critical findings. npm's displayed automatic fix would replace current packages with incompatible pre-release versions, so FoodFind will not use `npm audit fix --force`; the dependency should be updated normally when SvelteKit publishes a compatible resolution. The current frontend is statically built and does not use SvelteKit server cookies.
 
 ## Google location autocomplete lifecycle
 

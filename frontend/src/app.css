@@ -1,0 +1,406 @@
+/* Copied from the temporary FastAPI-rendered UI during the SvelteKit transition. */
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  background: #f7f5ef;
+  color: #25251f;
+  font-synthesis: none;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  width: min(48rem, calc(100% - 3rem));
+  margin: clamp(3rem, 9vh, 7rem) auto 5rem;
+}
+
+.eyebrow {
+  color: #596b3d;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(3rem, 10vw, 6rem);
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+}
+
+.intro {
+  margin: 1.25rem 0 0;
+  font-size: 1.25rem;
+}
+
+.search-panel {
+  margin-top: 3.5rem;
+  padding: 1.5rem;
+  border: 1px solid #d9d5c7;
+  border-radius: 1rem;
+  background: #fffdf7;
+}
+
+.search-panel h2,
+.results-heading h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.search-copy p {
+  margin: 0.4rem 0 0;
+  color: #5a594f;
+  line-height: 1.5;
+}
+
+.search-controls {
+  margin-top: 1.5rem;
+}
+
+.search-controls label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.search-action {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.location-control {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.radius-control {
+  width: 7rem;
+  flex: none;
+}
+
+.suggestions-panel {
+  margin-top: 0.5rem;
+  overflow: hidden;
+  border: 1px solid #d9d5c7;
+  border-radius: 0.65rem;
+  background: #fff;
+  box-shadow: 0 0.5rem 1.5rem rgb(37 37 31 / 10%);
+}
+
+.location-suggestions {
+  margin: 0;
+  padding: 0.35rem;
+  list-style: none;
+}
+
+.suggestion-button {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #25251f;
+  font-weight: 400;
+  text-align: left;
+}
+
+.suggestion-button:hover:not(:disabled),
+.suggestion-button:focus-visible {
+  background: #f0f3e9;
+}
+
+.google-maps-attribution {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #ece9df;
+  color: #5e5e5e;
+  font-family: Roboto, system-ui, sans-serif;
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-align: right;
+  white-space: nowrap;
+}
+
+input,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #aaa697;
+  border-radius: 0.65rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+input:focus-visible,
+select:focus-visible {
+  border-color: #596b3d;
+  outline: 3px solid #c9d7b2;
+  outline-offset: 1px;
+}
+
+input:disabled,
+select:disabled {
+  background: #eeece5;
+  color: #68675f;
+}
+
+button {
+  flex: none;
+  padding: 0.8rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: #3f562b;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #2f421f;
+}
+
+button:focus-visible {
+  outline: 3px solid #9ab474;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.search-status {
+  min-height: 1.5rem;
+  margin: 1rem 0 0;
+  color: #5a594f;
+}
+
+#results-section {
+  margin-top: 2.5rem;
+}
+
+.results-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #d9d5c7;
+}
+
+.results-heading p {
+  margin: 0;
+  color: #5a594f;
+}
+
+.place-results {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place-card {
+  padding: 1.25rem;
+  border: 1px solid #e2ded2;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.place-card p,
+.place-name {
+  margin: 0;
+}
+
+.place-name {
+  font-size: 1.1rem;
+}
+
+.place-category {
+  padding-top: 0.35rem;
+  color: #4c6335;
+  font-weight: 650;
+}
+
+.place-distance {
+  padding-top: 0.45rem;
+  color: #4d4c45;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.place-address {
+  padding-top: 0.65rem;
+  color: #4d4c45;
+}
+
+.place-status-warning {
+  padding-top: 0.65rem;
+  color: #7a4d00;
+  font-weight: 700;
+}
+
+.place-missing {
+  padding-top: 0.55rem;
+  color: #77756b;
+  font-size: 0.9rem;
+}
+
+.place-source {
+  padding-top: 0.65rem;
+  color: #77756b;
+  font-size: 0.8rem;
+}
+
+.place-details-button {
+  margin-top: 0.9rem;
+  padding: 0.55rem 0.85rem;
+  background: #e9efdf;
+  color: #30451f;
+  font-size: 0.9rem;
+}
+
+.place-details-button:hover:not(:disabled) {
+  background: #dce7cc;
+}
+
+.place-details {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2ded2;
+}
+
+.place-details p {
+  padding-top: 0.55rem;
+}
+
+.place-details p:first-child {
+  padding-top: 0;
+}
+
+.place-rating,
+.place-open-status {
+  color: #30451f;
+  font-weight: 700;
+}
+
+.place-detail-heading {
+  margin: 0;
+  padding-top: 0.8rem;
+  font-size: 0.95rem;
+}
+
+.place-hours {
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+  color: #4d4c45;
+  font-size: 0.9rem;
+}
+
+.place-hours-row + .place-hours-row {
+  padding-top: 0.2rem;
+}
+
+.place-phone,
+.place-website {
+  color: #4d4c45;
+  overflow-wrap: anywhere;
+}
+
+.place-website-link {
+  color: #3f562b;
+  font-weight: 650;
+}
+
+.place-phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.55rem;
+}
+
+.place-action {
+  display: inline-block;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: #3f562b;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.place-action:hover {
+  background: #2f421f;
+}
+
+.place-action:focus-visible {
+  outline: 3px solid #9ab474;
+  outline-offset: 3px;
+}
+
+.place-directions-link {
+  margin-top: 0.9rem;
+  margin-right: 0.5rem;
+}
+
+.place-call-action {
+  margin: 0;
+}
+
+.place-show-number-button {
+  padding: 0.55rem 0.85rem;
+  background: #e9efdf;
+  color: #30451f;
+  font-size: 0.9rem;
+}
+
+.place-show-number-button:hover:not(:disabled) {
+  background: #dce7cc;
+}
+
+.place-detail-status {
+  color: #5a594f;
+}
+
+.place-detail-error {
+  color: #8a2f24;
+  font-weight: 650;
+}
+
+@media (max-width: 36rem) {
+  .search-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .radius-control {
+    width: 100%;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  .place-action {
+    box-sizing: border-box;
+    width: 100%;
+    text-align: center;
+  }
+
+  .place-directions-link {
+    margin-right: 0;
+  }
+}

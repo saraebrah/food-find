@@ -1,15 +1,18 @@
 # FoodFind
 
-FoodFind is a web application for discovering places to get food near a selected location. Phase 1 is complete; current build status and next work are tracked in [`docs/roadmap.md`](docs/roadmap.md).
+FoodFind is a web application for discovering places to get food near a selected location. The Python FastAPI backend serves normalized place APIs; the SvelteKit frontend provides the browser interface. Current build status and next work are tracked in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Setup
 
-Requires Python 3.10 or newer.
+Requires Python 3.10 or newer and Node.js `^20.19.0` or `>=22.12.0`.
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+cd frontend
+npm install
+cd ..
 ```
 
 ## Google Places setup
@@ -40,17 +43,37 @@ Do not add this command to automated tests.
 
 ## Run
 
+Run the backend and frontend in separate terminals:
+
 ```sh
 fastapi dev app/main.py
 ```
 
-Open <http://127.0.0.1:8000>.
+```sh
+cd frontend
+npm run dev
+```
+
+Open <http://127.0.0.1:5173>. The frontend development server proxies `/api` to FastAPI at <http://127.0.0.1:8000>. The older page at port `8000` remains only as a temporary migration fallback.
 
 ## Test
 
 ```sh
 pytest
 ```
+
+Frontend checks:
+
+```sh
+cd frontend
+npm run check
+npm run test:unit -- --run
+npx playwright install chromium
+npm run test:e2e
+npm run build
+```
+
+Frontend tests intercept or mock FoodFind API responses and never call Google.
 
 ## Project documentation
 

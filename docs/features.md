@@ -19,7 +19,7 @@ This file breaks the product into individual features, including expected behavi
 - Results with missing business status remain visible with an operational-status warning.
 - Missing category or address values are identified as unavailable instead of inferred.
 
-The initial browser UI uses a small deferred JavaScript file. It attaches the API request only to the button's click event and does not run a search during page initialization.
+The active browser UI is a Svelte 5 and SvelteKit TypeScript application under `frontend/`. Its page-level search handler is the only place that starts a nearby search; rendering and initializing components do not search. The earlier server-rendered template and deferred JavaScript remain temporarily as a fallback during the transition.
 
 ### Acceptance criteria
 
@@ -27,10 +27,10 @@ The initial browser UI uses a small deferred JavaScript file. It attaches the AP
 - Repeated `GET /` requests produce zero provider searches.
 - Automated tests replace the provider with a fake and never call Google.
 - The selected coordinates and radius are passed into the generalized application use case; included types remain defined once there.
-- Provider values are inserted with DOM text properties rather than interpreted as HTML.
+- Provider values are rendered through Svelte text interpolation rather than interpreted as HTML.
 - The result count and search status are announced through visible text and an ARIA live region.
 
-Phase 2 keeps these states explicit and recoverable without adding a frontend state-management framework.
+These states remain explicit and recoverable in local Svelte component state without adding an external state-management library.
 
 ## Search feedback and recovery
 
@@ -46,7 +46,7 @@ Phase 2 keeps these states explicit and recoverable without adding a frontend st
 - The API returns a safe `502` response for provider failures without exposing Google response details.
 - Controls are restored after successful, invalid, empty, or failed search requests.
 
-No state-management framework is used. The current interface has one result-clearing helper and direct status updates appropriate to the size of the page.
+No external state-management library is used. The Svelte page owns the search snapshot, results, and status; focused child components own suggestion and per-card detail lifecycles.
 
 ### Acceptance criteria
 
