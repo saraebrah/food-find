@@ -179,4 +179,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Define the shared filter and sorting state, then add supported filters incrementally.
+Review the completed Enterprise filters: Open now, minimum rating, and rating sorting. Do not implement Enterprise + Atmosphere filters until that billing group is explicitly approved.

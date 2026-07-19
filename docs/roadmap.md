@@ -49,20 +49,32 @@ This phase turns the fixed search from Phase 1 into a usable discovery flow.
 
 - [x] Transition the temporary browser interface to Svelte 5 and SvelteKit while preserving the completed Phase 2 behavior and request safeguards.
 
-Add filters incrementally:
+Add filters incrementally, grouped by the highest Google Nearby Search billing tier they require:
 
-1. Establish one normalized filter and sorting state shared by the browser, API, and application.
-2. Place type
-3. Open now
-4. Minimum rating
-5. Cuisine
-6. Dine-in and takeout, introducing Enterprise + Atmosphere data only when these filters are built
-7. Common food
-8. Distance and rating sorting
+### Pro group
+
+1. [x] Establish one normalized filter and sorting state shared by the browser, API, and application.
+2. [x] Place type
+3. [x] Cuisine, using only supported provider types
+4. [x] Common food, using only reliable provider types and without claiming menu availability
+5. [x] Distance sorting through the provider's distance rank preference
+6. [x] Review the complete Pro filter group before requesting Enterprise search fields.
+
+### Enterprise group
+
+7. [x] Open now
+8. [x] Minimum rating
+9. [x] Rating sorting
+10. [x] Review Enterprise cost, missing-data behavior, and results before continuing.
+
+### Enterprise + Atmosphere group
+
+11. [x] Dine-in and takeout
+12. **Current pause:** review Enterprise + Atmosphere cost, missing-data behavior, and results before completing Phase 3.
 
 For each filter, first confirm provider support, billing tier, missing-data behavior, and whether it can be applied by the provider or only to the returned result set. Implement and verify one filter before moving to the next.
 
-Manual controls establish the search model that smart search will later use. A filter should only be added when the selected provider can support it reliably. Enterprise + Atmosphere fields stay out of the result list and Phase 2 detail request until a Phase 3 filter actually needs them.
+Manual controls establish the search model that smart search will later use. A filter should only be added when the selected provider can support it reliably. Complete and review each billing group before the next group begins. Higher-tier fields must be requested only when an active filter in that group needs them; they do not become part of every default search.
 
 ## Phase 4 — Smart search
 
@@ -121,7 +133,7 @@ This phase improves the complete working flow after the core behavior is establi
 
 ## Current next task
 
-Start Phase 3 Step 1: define the normalized filter and sorting state, then choose the first filter only after confirming Google support, billing impact, and missing-data behavior.
+Review the completed Phase 3 Enterprise + Atmosphere filter group. Do not begin Phase 4 until it is explicitly approved.
 
 ## Open decisions
 

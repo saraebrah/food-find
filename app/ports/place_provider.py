@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from app.domain.place import Place, PlaceDetails
+from app.domain.search import SearchFilters, SearchSort
 
 
 class PlaceProviderError(RuntimeError):
@@ -18,7 +19,8 @@ class PlaceProvider(Protocol):
         latitude: float,
         longitude: float,
         radius_meters: float,
-        included_types: Sequence[str],
+        filters: SearchFilters,
+        sort: SearchSort,
     ) -> Sequence[Place]: ...
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails: ...

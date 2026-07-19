@@ -4,6 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.domain.place import Coordinates, Place, PlaceDetails
+from app.domain.search import (
+    Cuisine,
+    MinimumRating,
+    PlaceType,
+    SearchFilters,
+    SearchSort,
+)
 from app.main import app, get_place_provider
 from app.ports.place_provider import PlaceProviderError
 
@@ -23,7 +30,8 @@ class RecordingPlaceProvider:
         latitude: float,
         longitude: float,
         radius_meters: float,
-        included_types: Sequence[str],
+        filters: SearchFilters,
+        sort: SearchSort,
     ) -> Sequence[Place]:
         self.call_count += 1
         self.searches.append(
@@ -31,7 +39,8 @@ class RecordingPlaceProvider:
                 "latitude": latitude,
                 "longitude": longitude,
                 "radius_meters": radius_meters,
-                "included_types": tuple(included_types),
+                "filters": filters,
+                "sort": sort,
             }
         )
         return [
@@ -44,6 +53,10 @@ class RecordingPlaceProvider:
                 address="1 Front Street, Toronto, ON",
                 coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
                 business_status="operational",
+                open_now=True,
+                rating=4.6,
+                dine_in=True,
+                takeout=True,
             )
         ]
 
@@ -71,7 +84,8 @@ class FailingPlaceProvider:
         latitude: float,
         longitude: float,
         radius_meters: float,
-        included_types: Sequence[str],
+        filters: SearchFilters,
+        sort: SearchSort,
     ) -> Sequence[Place]:
         raise PlaceProviderError("private provider details")
 
@@ -197,6 +211,15 @@ def test_explicit_search_calls_provider_once_and_returns_places(
                 "longitude": -79.3806,
             },
             "radius_meters": 2_000,
+            "filters": {
+                "place_types": ["bar", "bakery"],
+                "cuisines": ["italian"],
+                "open_now": True,
+                "minimum_rating": 4.5,
+                "dine_in": True,
+                "takeout": True,
+            },
+            "sort": "rating",
         },
     )
 
@@ -208,7 +231,15 @@ def test_explicit_search_calls_provider_once_and_returns_places(
             "latitude": 43.6453,
             "longitude": -79.3806,
             "radius_meters": 2_000,
-            "included_types": ("restaurant", "cafe"),
+            "filters": SearchFilters(
+                place_types=(PlaceType.BAR, PlaceType.BAKERY),
+                cuisines=(Cuisine.ITALIAN,),
+                open_now=True,
+                minimum_rating=MinimumRating.FOUR_AND_HALF,
+                dine_in=True,
+                takeout=True,
+            ),
+            "sort": SearchSort.RATING,
         }
     ]
     assert response.json() == [
@@ -221,9 +252,48 @@ def test_explicit_search_calls_provider_once_and_returns_places(
             "address": "1 Front Street, Toronto, ON",
             "coordinates": {"latitude": 43.6454, "longitude": -79.3805},
             "business_status": "operational",
+            "open_now": True,
+            "rating": 4.6,
+            "dine_in": True,
+            "takeout": True,
             "distance_meters": 14,
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("filters", "sort"),
+    (
+        ({"delivery": True}, "provider_default"),
+        ({"minimum_rating": 3.7}, "provider_default"),
+        ({"place_types": ["food_truck"]}, "provider_default"),
+        ({}, "price"),
+    ),
+)
+def test_search_rejects_unsupported_filter_or_sort_without_searching(
+    client: TestClient,
+    filters: dict[str, object],
+    sort: str,
+) -> None:
+    provider = RecordingPlaceProvider()
+    app.dependency_overrides[get_place_provider] = lambda: provider
+
+    response = client.post(
+        "/api/places/search",
+        json={
+            "location": {
+                "label": "Union Station coordinates",
+                "latitude": 43.6453,
+                "longitude": -79.3806,
+            },
+            "radius_meters": 2_000,
+            "filters": filters,
+            "sort": sort,
+        },
+    )
+
+    assert response.status_code == 422
+    assert provider.call_count == 0
 
 
 def test_search_returns_safe_provider_error(client: TestClient) -> None:

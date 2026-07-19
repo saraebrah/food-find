@@ -9,6 +9,7 @@ from app.application.search_fixed_toronto import (
     SearchFixedTorontoPlaces,
 )
 from app.domain.place import Place
+from app.domain.search import SearchFilters, SearchSort
 
 
 class RecordingPlaceProvider:
@@ -21,14 +22,16 @@ class RecordingPlaceProvider:
         latitude: float,
         longitude: float,
         radius_meters: float,
-        included_types: Sequence[str],
+        filters: SearchFilters,
+        sort: SearchSort,
     ) -> Sequence[Place]:
         self.searches.append(
             {
                 "latitude": latitude,
                 "longitude": longitude,
                 "radius_meters": radius_meters,
-                "included_types": tuple(included_types),
+                "filters": filters,
+                "sort": sort,
             }
         )
         return []
@@ -47,6 +50,7 @@ async def test_fixed_toronto_search_calls_provider_once_with_fixed_criteria() ->
             "latitude": TORONTO_CITY_HALL.latitude,
             "longitude": TORONTO_CITY_HALL.longitude,
             "radius_meters": TORONTO_SEARCH_RADIUS_METERS,
-            "included_types": TORONTO_SEARCH_TYPES,
+            "filters": SearchFilters(place_types=TORONTO_SEARCH_TYPES),
+            "sort": SearchSort.PROVIDER_DEFAULT,
         }
     ]

@@ -1,10 +1,16 @@
-from collections.abc import Sequence
 from urllib.parse import quote
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.place import Coordinates, Place, PlaceDetails
+from app.domain.search import (
+    CommonFood,
+    Cuisine,
+    PlaceType,
+    SearchFilters,
+    SearchSort,
+)
 from app.ports.place_provider import PlaceProvider, PlaceProviderError
 
 
@@ -20,6 +26,10 @@ GOOGLE_FIELD_MASK = ",".join(
         "places.businessStatus",
     )
 )
+GOOGLE_CURRENT_OPENING_HOURS_FIELD = "places.currentOpeningHours"
+GOOGLE_RATING_FIELD = "places.rating"
+GOOGLE_DINE_IN_FIELD = "places.dineIn"
+GOOGLE_TAKEOUT_FIELD = "places.takeout"
 GOOGLE_PLACE_DETAILS_URL = "https://places.googleapis.com/v1/places/{place_id}"
 GOOGLE_DETAILS_FIELD_MASK = ",".join(
     (
@@ -44,6 +54,16 @@ class GoogleLocation(BaseModel):
     longitude: float
 
 
+class GoogleOpeningHours(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    open_now: bool | None = Field(default=None, alias="openNow")
+    weekday_descriptions: list[str] = Field(
+        default_factory=list,
+        alias="weekdayDescriptions",
+    )
+
+
 class GooglePlaceRecord(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -56,20 +76,17 @@ class GooglePlaceRecord(BaseModel):
     formatted_address: str | None = Field(default=None, alias="formattedAddress")
     location: GoogleLocation
     business_status: str | None = Field(default=None, alias="businessStatus")
+    current_opening_hours: GoogleOpeningHours | None = Field(
+        default=None,
+        alias="currentOpeningHours",
+    )
+    rating: float | None = None
+    dine_in: bool | None = Field(default=None, alias="dineIn")
+    takeout: bool | None = None
 
 
 class GoogleNearbySearchResponse(BaseModel):
     places: list[GooglePlaceRecord] = Field(default_factory=list)
-
-
-class GoogleOpeningHours(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    open_now: bool | None = Field(default=None, alias="openNow")
-    weekday_descriptions: list[str] = Field(
-        default_factory=list,
-        alias="weekdayDescriptions",
-    )
 
 
 class GooglePlaceDetailsRecord(BaseModel):
@@ -102,6 +119,26 @@ GOOGLE_BUSINESS_STATUSES = {
     "CLOSED_TEMPORARILY": "temporarily_closed",
     "CLOSED_PERMANENTLY": "permanently_closed",
 }
+GOOGLE_PLACE_TYPES = {
+    PlaceType.RESTAURANT: "restaurant",
+    PlaceType.CAFE: "cafe",
+    PlaceType.BAR: "bar",
+    PlaceType.BAKERY: "bakery",
+}
+GOOGLE_CUISINES = {
+    Cuisine.CHINESE: "chinese_restaurant",
+    Cuisine.ITALIAN: "italian_restaurant",
+    Cuisine.PERSIAN: "persian_restaurant",
+    Cuisine.THAI: "thai_restaurant",
+    Cuisine.INDIAN: "indian_restaurant",
+}
+GOOGLE_COMMON_FOODS = {
+    CommonFood.PIZZA: "pizza_restaurant",
+    CommonFood.BURGER: "hamburger_restaurant",
+    CommonFood.STEAK: "steak_house",
+    CommonFood.RAMEN: "ramen_restaurant",
+    CommonFood.KEBAB: "kebab_shop",
+}
 
 
 class GooglePlacesGateway(PlaceProvider):
@@ -116,18 +153,58 @@ class GooglePlacesGateway(PlaceProvider):
     def provider_name(self) -> str:
         return "google"
 
+    @staticmethod
+    def _search_field_mask(*, filters: SearchFilters, sort: SearchSort) -> str:
+        conditional_fields: list[str] = []
+        if filters.open_now:
+            conditional_fields.append(GOOGLE_CURRENT_OPENING_HOURS_FIELD)
+        if filters.minimum_rating is not None or sort is SearchSort.RATING:
+            conditional_fields.append(GOOGLE_RATING_FIELD)
+        if filters.dine_in:
+            conditional_fields.append(GOOGLE_DINE_IN_FIELD)
+        if filters.takeout:
+            conditional_fields.append(GOOGLE_TAKEOUT_FIELD)
+        return ",".join((GOOGLE_FIELD_MASK, *conditional_fields))
+
     async def search_nearby(
         self,
         *,
         latitude: float,
         longitude: float,
         radius_meters: float,
-        included_types: Sequence[str],
+        filters: SearchFilters,
+        sort: SearchSort,
     ) -> list[Place]:
-        if not included_types:
+        if not filters.place_types:
             raise ValueError("At least one place type is required")
         if not 0 < radius_meters <= 50_000:
             raise ValueError("Radius must be greater than zero and at most 50,000 metres")
+
+        request_body: dict[str, object] = {
+            "includedTypes": [
+                GOOGLE_PLACE_TYPES[place_type]
+                for place_type in filters.place_types
+            ],
+            "maxResultCount": 20,
+            "locationRestriction": {
+                "circle": {
+                    "center": {
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    },
+                    "radius": float(radius_meters),
+                }
+            },
+        }
+        specialty_types = (
+            [GOOGLE_CUISINES[cuisine] for cuisine in filters.cuisines]
+            if filters.cuisines
+            else [GOOGLE_COMMON_FOODS[food] for food in filters.common_foods]
+        )
+        if specialty_types:
+            request_body["includedPrimaryTypes"] = specialty_types
+        if sort is SearchSort.DISTANCE:
+            request_body["rankPreference"] = "DISTANCE"
 
         try:
             response = await self._http_client.post(
@@ -135,21 +212,12 @@ class GooglePlacesGateway(PlaceProvider):
                 headers={
                     "Content-Type": "application/json",
                     "X-Goog-Api-Key": self._api_key,
-                    "X-Goog-FieldMask": GOOGLE_FIELD_MASK,
+                    "X-Goog-FieldMask": self._search_field_mask(
+                        filters=filters,
+                        sort=sort,
+                    ),
                 },
-                json={
-                    "includedTypes": list(included_types),
-                    "maxResultCount": 20,
-                    "locationRestriction": {
-                        "circle": {
-                            "center": {
-                                "latitude": latitude,
-                                "longitude": longitude,
-                            },
-                            "radius": float(radius_meters),
-                        }
-                    },
-                },
+                json=request_body,
             )
             response.raise_for_status()
             google_response = GoogleNearbySearchResponse.model_validate(response.json())
@@ -227,4 +295,12 @@ class GooglePlacesGateway(PlaceProvider):
                 longitude=place.location.longitude,
             ),
             business_status=GOOGLE_BUSINESS_STATUSES.get(place.business_status),
+            open_now=(
+                place.current_opening_hours.open_now
+                if place.current_opening_hours
+                else None
+            ),
+            rating=place.rating,
+            dine_in=place.dine_in,
+            takeout=place.takeout,
         )
