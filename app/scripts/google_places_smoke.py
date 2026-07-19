@@ -3,13 +3,13 @@ import asyncio
 import httpx
 
 from app.adapters.google_places import GooglePlacesGateway
+from app.domain.search import SearchFilters, SearchSort
 from app.settings import Settings
 
 
 TORONTO_CITY_HALL_LATITUDE = 43.6532
 TORONTO_CITY_HALL_LONGITUDE = -79.3832
 SMOKE_TEST_RADIUS_METERS = 1_000
-SMOKE_TEST_TYPES = ("restaurant", "cafe")
 
 
 async def run() -> None:
@@ -24,7 +24,8 @@ async def run() -> None:
             latitude=TORONTO_CITY_HALL_LATITUDE,
             longitude=TORONTO_CITY_HALL_LONGITUDE,
             radius_meters=SMOKE_TEST_RADIUS_METERS,
-            included_types=SMOKE_TEST_TYPES,
+            filters=SearchFilters(),
+            sort=SearchSort.PROVIDER_DEFAULT,
         )
 
     print(f"Google Places smoke test succeeded: {len(places)} places returned.")

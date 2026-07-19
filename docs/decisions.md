@@ -128,9 +128,9 @@ Category labels and codes are still provider-supplied at this stage. A shared Fo
 
 Nearby-search result summaries contain name, category, address, straight-line distance, and provider attribution. Google supplies the place fields in the existing nearby-search request, while `SearchPlaces` calculates distance locally from the selected-location snapshot and result coordinates.
 
-The first result page uses only the useful fields required for its summaries and keeps the nearby-search field mask within **Nearby Search Pro**. Pro availability alone is not a reason to request or display a field.
+The default first result page uses only the useful fields required for its summaries and keeps the nearby-search field mask within **Nearby Search Pro**. Pro availability alone is not a reason to request or display a field. An active Enterprise search filter may conditionally add only the field it requires.
 
-Rating, rating count, current opening hours, phone, and website are requested through **Place Details Enterprise** only when a user explicitly opens a result. Opening one result does not trigger detail requests for the other results.
+Rating, rating count, current opening hours, phone, and website are requested through **Place Details Enterprise** when a user explicitly opens a result. Opening one result does not trigger detail requests for the other results. Separately, an active Open now filter conditionally requests current opening hours in its single Nearby Search request.
 
 The detail adapter requests only `id`, `rating`, `userRatingCount`, `currentOpeningHours`, `regularOpeningHours`, `nationalPhoneNumber`, `internationalPhoneNumber`, and `websiteUri`. It prefers the current seven-day hours, uses regular hours only as a fallback, and maps the response into FoodFind's provider-independent `PlaceDetails` model.
 
@@ -205,7 +205,7 @@ Every location input method will produce a FoodFind-owned `SelectedLocation` con
 - coordinates
 - optional provider name and provider place ID
 
-`SearchPlaces` receives this object inside `SearchCriteria` and passes its coordinates to the existing `PlaceProvider`. The place types remain `restaurant` and `cafe` until their later roadmap step.
+`SearchPlaces` receives this object inside `SearchCriteria` and passes its coordinates to the existing `PlaceProvider`. Phase 3 Step 2 replaces the earlier fixed restaurant-and-café constraint with the normalized editable place-type filter documented below.
 
 For Step 1A, the browser accepts decimal coordinates and sends the normalized label, latitude, and longitude to `POST /api/places/search`. The API validates finite values and coordinate ranges with a Pydantic boundary model before constructing the domain object.
 
@@ -320,17 +320,98 @@ Place Details requests only `id` and `location`. The selected label comes from t
 
 - the normalized `SelectedLocation`
 - radius in metres
+- a normalized `SearchFilters` value
+- a normalized `SearchSort` value
 
 The browser offers 500 m, 1 km, 2 km, and 5 km presets. The API accepts and validates values from 100 m through 50,000 m, while the application use case passes the chosen value through the existing provider port without modification.
 
-Changing the radius clears the visible result state but does not search. When the user explicitly starts a search, the browser snapshots the current location and radius and disables both controls until the request completes.
+Phase 3 Step 1 established the filter and sorting contract with an initially empty filter object and `provider_default` sorting. The completed Pro and Enterprise groups extend that object with normalized place types, cuisines, common foods, Open now, minimum rating, distance sorting, and rating sorting. Svelte owns these values alongside location and radius, sends all four top-level values in one request snapshot, and FastAPI converts them into the corresponding domain objects.
+
+The filter request model forbids unknown fields, and the sort enum accepts only `provider_default`, `distance`, and `rating`. A future filter or sort option becomes valid only when its roadmap step adds it deliberately across the browser, API, and application. Older callers that omit the new fields receive the same defaults for compatibility.
+
+Changing the radius clears the visible result state but does not search. When the user explicitly starts a search, the browser snapshots the current location, radius, filters, and sorting state and disables the controls until the request completes.
 
 ### Rationale
 
 - Later manual filters and smart-search interpretation can extend one normalized search object instead of adding unrelated function arguments.
+- An always-present filter container and sort value avoid changing the top-level search contract for every future control.
+- Strict boundary validation prevents unsupported criteria from being silently accepted or misrepresented as active.
 - The API boundary remains authoritative even though the current UI exposes only valid presets.
 - Snapshotting the controls prevents a request from displaying results under a location or radius that changed while it was running.
 - Keeping the provider port in metres avoids UI-label and unit-conversion concerns inside provider adapters.
+
+## Place-type filter
+
+- **Date:** 2026-07-18
+- **Status:** Current approach
+
+### Decision
+
+FoodFind's first editable filter supports four provider-independent `PlaceType` values:
+
+- `restaurant`
+- `cafe`
+- `bar`
+- `bakery`
+
+Restaurant and café remain selected by default, preserving the earlier search behavior. Users may select any non-empty combination. Checkbox changes clear results from the old criteria but do not search; the next explicit **Search** action snapshots the ordered selection with the other criteria.
+
+The FastAPI boundary accepts one to four unique supported values and rejects empty, duplicate, or unknown types with HTTP `422`. The application passes the normalized enum values through the `PlaceProvider` port. The Google adapter alone maps them to Google's identically named Nearby Search `includedTypes` values.
+
+Google applies `includedTypes` during Nearby Search and returns places matching at least one selected type. This needs no new response field, client-side missing-data policy, or additional provider request. The existing field mask remains unchanged and therefore remains in Nearby Search Pro.
+
+Google's current Nearby Search type table does not contain a generic `food_truck` request type. Food truck remains a product requirement for later provider or Text Search investigation, but it is not approximated with `meal_takeaway`, `food_delivery`, or another category that would misrepresent the user's choice.
+
+### Rationale
+
+- A small FoodFind-owned taxonomy keeps the UI and application independent from raw provider strings.
+- Mapping at the adapter boundary lets another provider support the same FoodFind choices differently.
+- Provider-side filtering avoids discarding scarce results from Google's maximum result set after the request.
+- Keeping the default selection preserves existing behavior while making the constraint visible and editable.
+- Deferring food truck is more honest than returning a broader or different business category.
+
+### Current provider references
+
+- Google documents up to 50 type values per Nearby Search restriction and OR behavior within `includedTypes`: [Nearby Search type restrictions](https://developers.google.com/maps/documentation/places/web-service/nearby-search#included-types).
+- Restaurant, café, bar, and bakery are current request-filterable Table A values: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
+- Nearby Search billing is controlled by the response field mask; the existing summary mask remains Pro: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
+
+## Pro cuisine, common-food, and distance filters
+
+- **Date:** 2026-07-18
+- **Status:** Current approach
+
+### Decision
+
+The completed Pro group adds two small provider-independent specialty taxonomies:
+
+- Cuisine: Chinese, Italian, Persian, Thai, and Indian
+- Common food: pizza, burgers, steak, ramen, and kebab
+
+The Google adapter maps those values to current Table A primary types such as `italian_restaurant`, `pizza_restaurant`, and `hamburger_restaurant`. Common-food choices describe the provider's business classification; they do not confirm menu-item availability. Pasta is omitted because Google does not expose a request-filterable pasta type.
+
+Google allows multiple selected values within one positive primary-type restriction, but treats them as OR. Because cuisine and common food are separate FoodFind facets that should not silently become an OR across facets, only one of those groups may be active in a search. The browser disables the inactive group and explains how to switch; the API and domain also reject a conflicting request. Multiple choices within the active group still mean “match any selected choice.”
+
+General place types remain in `includedTypes`; the active cuisine or common-food mapping uses `includedPrimaryTypes`. Google requires a result to satisfy both restriction categories, so a selected specialty also respects the selected kinds of food business.
+
+The sort control supports `provider_default` and `distance`. The Google adapter omits `rankPreference` for provider default, which Google currently ranks by popularity, and sends `DISTANCE` for ascending distance. This remains one Nearby Search request and does not invoke a routing API.
+
+None of these Pro request parameters adds response fields. The default nearby-search field mask remains unchanged in the Pro SKU. Higher-tier filters are governed separately and never become part of the Pro default merely because they have been implemented.
+
+### Rationale
+
+- FoodFind-owned enums prevent raw Google type names from leaking through the domain and browser contract.
+- A deliberately small taxonomy avoids offering categories that Google cannot reliably apply.
+- Rejecting an ambiguous cross-group combination is more honest than silently widening it to OR behavior.
+- Provider-side type filtering and ranking preserve the maximum result set and require no extra request.
+- Keeping the field mask unchanged provides a clear billing boundary before Enterprise work begins.
+
+### Current provider references
+
+- Google documents AND behavior across type-restriction categories and OR behavior within an included category: [Nearby Search type restrictions](https://developers.google.com/maps/documentation/places/web-service/nearby-search#included-types).
+- The supported cuisine and common-food mappings are request-filterable Table A types: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
+- Google documents `POPULARITY` as the omitted/default ranking and `DISTANCE` as ascending distance: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
+- Billing is controlled by requested response fields; the existing summary mask remains within Nearby Search Pro: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
 
 ## Provider failure boundary
 
@@ -365,6 +446,26 @@ After completing basic place discovery, FoodFind will build in this order:
 
 Filters will be implemented one at a time. Before adding each one, confirm whether Google supports it, which billing tier its fields require, how missing values behave, and whether it can be applied by Google or only to the returned result set.
 
+Phase 3 filter work is grouped by the highest Nearby Search billing tier required:
+
+1. **Pro:** place type, cuisine, supported common food, and distance sorting
+2. **Enterprise:** open now, minimum rating, and rating sorting
+3. **Enterprise + Atmosphere:** dine-in and takeout
+
+FoodFind pauses for review after each group. Completing a group does not automatically authorize starting the next billing tier.
+
+Cuisine and supported common-food choices can be represented by Google request-filterable place types. Distance ordering is available through Nearby Search's `DISTANCE` rank preference. These request parameters do not require adding response fields, so the existing Pro field mask remains unchanged.
+
+Nearby Search does not provide an `openNow` request parameter. Open now therefore needs `currentOpeningHours`; minimum-rating filtering and rating ordering need `rating`. Each completed Enterprise filter requests only its required response field when active. Dine-in and takeout require Enterprise + Atmosphere response fields and remain in the final group.
+
+The Enterprise implementation must use one conditional Nearby Search request rather than fetching Place Details separately for every returned result. Missing-data behavior must be agreed and documented before each Enterprise or Enterprise + Atmosphere filter is implemented.
+
+### Billing-group references
+
+- Nearby Search supports type restrictions and `DISTANCE` or `POPULARITY` rank preference as request parameters: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
+- Google lists request-filterable cuisine and food categories in its current Table A: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
+- Google classifies `currentOpeningHours` and `rating` as Nearby Search Enterprise fields and `dineIn` and `takeout` as Enterprise + Atmosphere fields: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
+
 Current location remains combined with the map phase. Delaying the map therefore also delays device-location permission, while autocomplete, addresses, and coordinate entry continue to provide working manual location selection.
 
 ### Rationale
@@ -381,3 +482,92 @@ Current location remains combined with the map phase. Delaying the map therefore
 - Device current location arrives later because it is grouped with the map.
 - Filter implementation may change provider fields and billing tiers before the map work begins.
 - Filters and smart search will make the browser state richer, so the project must decide whether to introduce SvelteKit before extending the temporary JavaScript interface substantially.
+
+## Open-now filter
+
+- **Date:** 2026-07-18
+- **Status:** Current approach
+
+### Decision
+
+`SearchFilters.open_now` is false by default. Changing it clears stale browser results but does not search. The next explicit search snapshots the value with the other criteria.
+
+When false, the Google adapter uses the unchanged Pro field mask and the normalized place value is unknown. When true, the adapter adds only `places.currentOpeningHours` to the same Nearby Search request, making that request Enterprise, and maps `currentOpeningHours.openNow` to the provider-independent `Place.open_now` value.
+
+Nearby Search does not accept an Open now request parameter. The application therefore filters Google's returned candidates after the single provider request. Only `open_now is True` satisfies the filter; false or missing data is excluded because FoodFind cannot claim an unknown place is currently open. Explicitly temporary and permanently closed businesses remain excluded independently of current hours.
+
+Google returns at most 20 Nearby Search candidates before this application-side filter runs. The filtered list can therefore be short and is not guaranteed to include every open place in the radius. FoodFind does not issue additional searches or one detail request per candidate to fill the list.
+
+Results retained by the filter carry `open_now=true` in the normalized summary and display an **Open now** tag without another request. The existing on-demand detail behavior remains available and unchanged.
+
+### Rationale
+
+- Conditional field masks keep ordinary searches at Pro and make the billing-tier change directly traceable to the active filter.
+- Requiring an explicit true value gives the filter honest semantics when provider data is missing.
+- One Nearby Search request preserves the project's request and cost safeguards.
+- Domain-level filtering keeps the rule independent from Google's response shape and reusable by another provider.
+
+### Current provider references
+
+- Google's Nearby Search request schema contains no `openNow` filter and returns at most 20 candidates: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
+- Google classifies `places.currentOpeningHours` as a Nearby Search Enterprise field: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
+
+## Enterprise rating filters
+
+- **Date:** 2026-07-18
+- **Status:** Current approach
+
+### Decision
+
+FoodFind supports four provider-independent minimum-rating thresholds: 3.0, 3.5, 4.0, and 4.5. No minimum is the default. The API rejects any other threshold instead of accepting a value the browser cannot represent.
+
+A selected minimum keeps only places whose normalized rating is greater than or equal to the threshold. A missing rating does not satisfy a minimum because FoodFind cannot prove the place meets it.
+
+`SearchSort.RATING` orders ratings highest-first. Places with missing ratings remain in the result set when no minimum is active and are placed last. Python's stable sort preserves Google's relative order for equal ratings and among missing ratings.
+
+Nearby Search supports only popularity and distance ranking, so FoodFind does not send rating as a Google `rankPreference`. If a minimum rating or rating sorting is active, the adapter adds only `places.rating` to the field mask and maps it into `Place.rating`. If both are active, the field is added once. If Open now is also active, both Enterprise fields are added once to the same request.
+
+Minimum rating and rating sorting operate on the maximum 20 candidates Google returns. A minimum may shorten the visible list, and rating sorting ranks only that candidate set; FoodFind does not make additional searches or per-result detail calls to fill or reorder a wider set.
+
+When present, the summary displays the already-returned rating with Google Maps attribution. Default Pro searches do not request rating and do not display a summary rating.
+
+### Rationale
+
+- Half-star thresholds give useful control without implying precision beyond the product's simple UI.
+- Strict allowed values keep browser, API, and domain behavior identical.
+- Excluding missing values from a minimum filter is more honest than treating unknown as sufficient.
+- Keeping missing values last during sorting avoids discarding otherwise useful places.
+- Conditional field masking maintains the Pro default and avoids redundant Enterprise fields or provider calls.
+
+### Current provider references
+
+- Google classifies `places.rating` as a Nearby Search Enterprise field: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
+- Google's Nearby Search request supports only popularity and distance ranking and returns at most 20 candidates: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
+
+## Enterprise + Atmosphere service filters
+
+- **Date:** 2026-07-18
+- **Status:** Current approach
+
+### Decision
+
+FoodFind supports independent Dine-in and Takeout filters. Both default to false. Changing either control clears stale results but does not search; the next explicit search snapshots both values with the other criteria.
+
+The Google adapter adds `places.dineIn` only when Dine-in is active and `places.takeout` only when Takeout is active. Selecting both adds both fields once to the same Nearby Search request. With neither selected, both fields are absent, so these controls do not make an ordinary Pro or Enterprise search use the Enterprise + Atmosphere SKU.
+
+Nearby Search has no request parameter for these services. FoodFind filters Google's returned candidates in the application layer. Only an explicit true value satisfies an active service filter; false or missing data is excluded because FoodFind cannot confirm that the place offers the requested service. When both filters are active, a place must explicitly support both.
+
+The filters operate on the maximum 20 candidates Google returns. The visible result count can therefore be short, and FoodFind does not issue additional searches or per-place detail requests to fill the list. The normalized service values support filtering but are not added as result-card claims.
+
+### Rationale
+
+- Conditional field masks keep Enterprise + Atmosphere billing directly tied to an active service filter.
+- Independent booleans allow either service or both without introducing a provider-specific filter model.
+- Requiring explicit true values avoids presenting missing provider data as confirmed service availability.
+- One provider request preserves the established lifecycle and cost safeguards.
+- Application-layer filtering remains independent of Google's response shape and can be reused with another provider.
+
+### Current provider references
+
+- Google classifies `places.dineIn` and `places.takeout` as Nearby Search Enterprise + Atmosphere fields: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
+- Google's Nearby Search request schema has no dine-in or takeout filter parameter and returns at most 20 candidates: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).

@@ -25,6 +25,10 @@ class Place:
     address: str | None
     coordinates: Coordinates
     business_status: BusinessStatus | None = None
+    open_now: bool | None = None
+    rating: float | None = None
+    dine_in: bool | None = None
+    takeout: bool | None = None
     distance_meters: int | None = None
 
 

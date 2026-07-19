@@ -22,6 +22,10 @@ const placeResult: Place = {
 	address: '100 Queen Street West, Toronto, ON',
 	coordinates: { latitude: 43.6525, longitude: -79.3817 },
 	business_status: 'operational',
+	open_now: null,
+	rating: null,
+	dine_in: null,
+	takeout: null,
 	distance_meters: 175
 };
 
@@ -64,10 +68,99 @@ describe('FoodFind page request lifecycle', () => {
 					latitude: 43.6532,
 					longitude: -79.3832
 				},
-				radius_meters: 1000
+				radius_meters: 1000,
+				filters: {
+					place_types: ['restaurant', 'cafe'],
+					cuisines: [],
+					common_foods: [],
+					open_now: false,
+					minimum_rating: null,
+					dine_in: false,
+					takeout: false
+				},
+				sort: 'provider_default'
 			},
 			expect.any(AbortSignal)
 		);
+
+		await page.getByRole('checkbox', { name: 'Bakery' }).click();
+		await expect
+			.element(page.getByRole('heading', { name: 'Test Kitchen' }))
+			.not.toBeInTheDocument();
+		expect(searchPlaces).toHaveBeenCalledTimes(1);
+	});
+
+	it('changes place types without searching and snapshots the chosen types', async () => {
+		render(FoodFindPage);
+
+		await expect.element(page.getByRole('checkbox', { name: 'Restaurant' })).toBeChecked();
+		await expect.element(page.getByRole('checkbox', { name: 'Café' })).toBeChecked();
+		await expect.element(page.getByRole('checkbox', { name: 'Bar' })).not.toBeChecked();
+		await page.getByRole('checkbox', { name: 'Bar' }).click();
+		await page.getByRole('checkbox', { name: 'Restaurant' }).click();
+		await page.getByRole('checkbox', { name: 'Café' }).click();
+		expect(searchPlaces).not.toHaveBeenCalled();
+
+		await page.getByRole('button', { name: 'Search' }).click();
+		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
+		expect(searchPlaces).toHaveBeenCalledWith(
+			expect.objectContaining({
+				filters: {
+					place_types: ['bar'],
+					cuisines: [],
+					common_foods: [],
+					open_now: false,
+					minimum_rating: null,
+					dine_in: false,
+					takeout: false
+				}
+			}),
+			expect.any(AbortSignal)
+		);
+	});
+
+	it('applies higher-tier filters and rating sorting only on explicit search', async () => {
+		render(FoodFindPage);
+
+		await page.getByRole('checkbox', { name: 'Italian' }).click();
+		await expect.element(page.getByRole('checkbox', { name: 'Pizza' })).toBeDisabled();
+		await page.getByRole('checkbox', { name: 'Open now' }).click();
+		await page.getByRole('checkbox', { name: 'Dine-in' }).click();
+		await page.getByRole('checkbox', { name: 'Takeout' }).click();
+		await page.getByLabelText('Minimum rating').selectOptions('4.5');
+		await page.getByLabelText('Sort').selectOptions('rating');
+		expect(searchPlaces).not.toHaveBeenCalled();
+
+		await page.getByRole('button', { name: 'Search' }).click();
+		expect(searchPlaces).toHaveBeenCalledWith(
+			expect.objectContaining({
+				filters: {
+					place_types: ['restaurant', 'cafe'],
+					cuisines: ['italian'],
+					common_foods: [],
+					open_now: true,
+					minimum_rating: 4.5,
+					dine_in: true,
+					takeout: true
+				},
+				sort: 'rating'
+			}),
+			expect.any(AbortSignal)
+		);
+
+		await page.getByRole('checkbox', { name: 'Italian' }).click();
+		await page.getByRole('checkbox', { name: 'Pizza' }).click();
+		await expect.element(page.getByRole('checkbox', { name: 'Italian' })).toBeDisabled();
+	});
+
+	it('requires at least one place type before searching', async () => {
+		render(FoodFindPage);
+
+		await page.getByRole('checkbox', { name: 'Restaurant' }).click();
+		await page.getByRole('checkbox', { name: 'Café' }).click();
+		await expect.element(page.getByRole('button', { name: 'Search' })).toBeDisabled();
+		await expect.element(page.getByText('Choose at least one place type.')).toBeVisible();
+		expect(searchPlaces).not.toHaveBeenCalled();
 	});
 
 	it('resolves a chosen address once without starting a place search', async () => {

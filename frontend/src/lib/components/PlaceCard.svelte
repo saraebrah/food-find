@@ -53,9 +53,15 @@
 		{place.category || place.category_code || 'Category unavailable'}
 	</p>
 	<p class="place-distance">{formatDistance(place.distance_meters)}</p>
+	{#if place.rating !== null}
+		<p class="place-rating">{providerName(place.provider)} rating: {place.rating}/5</p>
+	{/if}
 	<p class:place-address={place.address} class:place-missing={!place.address}>
 		{place.address || 'Address unavailable'}
 	</p>
+	{#if place.open_now === true}
+		<p class="place-open-status">Open now</p>
+	{/if}
 	{#if place.business_status === null}
 		<p class="place-status-warning">
 			Operational status unconfirmed. Call to confirm before visiting.

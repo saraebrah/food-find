@@ -8,7 +8,10 @@ This file breaks the product into individual features, including expected behavi
 
 - `POST /api/places/search` accepts one normalized selected location containing a label, latitude, and longitude.
 - Users choose a radius of 500 m, 1 km, 2 km, or 5 km; 1 km is the default.
-- The fixed provider types are restaurant and café.
+- Users can search for any combination of the supported place types: restaurant, café, bar, and bakery. Restaurant and café are selected by default.
+- Users can optionally choose supported cuisines or supported common-food business categories, but not both groups in one search.
+- Users can optionally keep only places that Google explicitly reports open at search time.
+- Users can preserve Google's recommended order, order results by distance, or order Google's candidate set by rating.
 - The endpoint returns normalized FoodFind place objects.
 - Loading or reloading the home page does not run a search.
 - The Google client and server-side API key are created only when the search endpoint is called.
@@ -26,7 +29,7 @@ The active browser UI is a Svelte 5 and SvelteKit TypeScript application under `
 - One endpoint request produces exactly one provider search.
 - Repeated `GET /` requests produce zero provider searches.
 - Automated tests replace the provider with a fake and never call Google.
-- The selected coordinates and radius are passed into the generalized application use case; included types remain defined once there.
+- The selected coordinates, radius, normalized filters, and sort are passed into the generalized application use case.
 - Provider values are rendered through Svelte text interpolation rather than interpreted as HTML.
 - The result count and search status are announced through visible text and an ARIA live region.
 
@@ -100,6 +103,70 @@ Map selection and device current location remain together in Phase 5.
 - Page load and reload do not search.
 - The result lifecycle cannot read a different radius after a search begins.
 
+## Filter and sorting state
+
+### Current behavior
+
+- Every Svelte search snapshot contains `filters` and `sort` alongside location and radius.
+- The filter state contains ordered `place_types`, `cuisines`, and `common_foods` lists. Restaurant and café are the default place types; both specialty lists default to empty.
+- The `open_now` filter defaults to false.
+- The `minimum_rating` filter defaults to no minimum and offers 3.0+, 3.5+, 4.0+, and 4.5+.
+- The `dine_in` and `takeout` service filters are independent and default to false.
+- Users can choose Google's recommended order (`provider_default`), ascending distance (`distance`), or highest rating first (`rating`).
+- FastAPI converts both values into FoodFind-owned `SearchFilters` and `SearchSort` domain values before the application use case runs.
+- Omitting the fields retains the same defaults for older callers.
+- The place-type control supports restaurant, café, bar, and bakery as independent checkboxes. At least one must be selected before searching.
+- The cuisine control supports Chinese, Italian, Persian, Thai, and Indian. Multiple selections match any selected cuisine.
+- The common-food control supports pizza, burgers, steak, ramen, and kebab. These identify Google's business category and do not claim that a specific item is currently on the menu.
+- Cuisine and common-food selections cannot be combined. Selecting from one group disables the other until the active group is cleared because Google represents both through one positive primary-type restriction whose selected values use OR behavior.
+- Changing any filter or the sort clears stale results and displays guidance but does not search automatically.
+- The selected FoodFind types are mapped by the Google adapter to Nearby Search `includedTypes`. A place can match any selected type; no result-side filtering or additional detail request is needed.
+- Selected cuisines or common foods are mapped to `includedPrimaryTypes`. When combined with place types, Google requires a result to satisfy both restriction categories.
+- Distance sorting maps to Google's `DISTANCE` rank preference. Recommended ordering omits that parameter and retains Google's default popularity ranking.
+- Place type, cuisine, common-food, and distance controls do not add response fields or change the Nearby Search Pro field mask.
+- When Open now is active, the Google adapter adds only `places.currentOpeningHours` to that search's field mask. This makes that Nearby Search request Enterprise without changing the default request.
+- Nearby Search has no Open now request parameter. FoodFind therefore keeps only candidates whose normalized `open_now` value is explicitly true; false and missing values do not satisfy the filter.
+- When a minimum rating is selected or rating sorting is active, the Google adapter adds only `places.rating` to the conditional Enterprise field mask.
+- A selected minimum keeps ratings greater than or equal to its threshold. A missing rating does not satisfy a minimum.
+- Rating sorting is applied highest-first after Google returns its candidates. Missing ratings remain available when no minimum is active and appear last; equal ratings preserve Google's relative order.
+- When Dine-in is selected, the Google adapter adds only `places.dineIn`; when Takeout is selected, it adds only `places.takeout`. Either field makes that one search Enterprise + Atmosphere. Inactive service filters add neither field.
+- Nearby Search has no request parameter for either service. FoodFind therefore retains only places whose normalized value is explicitly true for every selected service; false and missing values do not satisfy the filter.
+- Google returns at most 20 Nearby Search candidates before FoodFind applies Open now, minimum rating, Dine-in, Takeout, or rating sorting. Filtering may produce fewer results, and rating sorting ranks only that candidate set.
+- A retained result displays an **Open now** tag using the value already returned by the search. Rendering the tag makes no extra request.
+- A returned summary rating is labelled as a Google Maps rating and displayed without an extra detail request.
+- A generic food-truck type is not currently available as a Google Nearby Search type. Food truck is not shown as a supported filter and is deferred rather than mapped to an inaccurate substitute.
+- Pasta is not shown as a common-food filter because Google has no request-filterable pasta place type.
+- Unknown filter properties, unsupported values, duplicate selections, an empty place-type list, conflicting specialty groups, and unsupported sort values are rejected with HTTP `422`; they are not silently ignored.
+
+### Acceptance criteria
+
+- One explicit search snapshots location, radius, filters, and sort exactly once.
+- The browser, API boundary, and application share the same normalized meaning for the state.
+- Rendering, editing criteria, or constructing default state makes no provider request.
+- Unsupported criteria cannot appear to be active while having no effect.
+- Adding a later filter extends the existing filter object rather than adding an unrelated top-level request parameter.
+- The initial browser state selects restaurant and café and makes no request.
+- Selecting or clearing a checkbox makes no provider request and removes results from the previous criteria.
+- One explicit search sends the complete normalized criteria and produces one Nearby Search request.
+- Multiple cuisines or multiple common-food choices use OR behavior within their own group.
+- General place types and the active specialty group use AND behavior between groups.
+- Cuisine and common-food choices can never appear active together in either a valid browser or API state.
+- Choosing distance changes provider ranking without making an extra request or adding a routing request.
+- The Google request field mask is unchanged when any Pro filter or sort changes.
+- Changing Open now makes no request until the user explicitly searches.
+- A default search omits `places.currentOpeningHours` and remains Pro.
+- An Open now search adds only `places.currentOpeningHours`, makes one Enterprise Nearby Search request, and returns only places whose value is true.
+- A place with false or missing current-opening-hours data does not satisfy Open now.
+- Selecting a minimum rating or rating sorting adds only `places.rating` to the search field mask and makes no extra request.
+- Supported minimum ratings are exactly 3.0, 3.5, 4.0, and 4.5; unsupported thresholds return HTTP `422`.
+- A missing rating is excluded by a minimum filter but retained at the end of rating-sorted results when no minimum is active.
+- Rating sorting is descending and stable for equal values.
+- Combining multiple Enterprise filters adds each required field once to the same Nearby Search request.
+- Changing Dine-in or Takeout makes no request until the user explicitly searches.
+- A search with neither service selected omits `places.dineIn` and `places.takeout`; it does not become Enterprise + Atmosphere.
+- Selecting Dine-in or Takeout adds only the corresponding field to the same Nearby Search request. Selecting both adds each field once and still produces one request.
+- A place with a false or missing service value does not satisfy that active service filter.
+
 ## Result summaries
 
 ### Current behavior
@@ -111,10 +178,11 @@ Map selection and device current location remain together in Phase 5.
 - Missing business status does not prove closure, so the result remains visible with the message: “Operational status unconfirmed. Call to confirm before visiting.”
 - An operational business is not labelled “open now” because business status is not the same as current opening hours.
 - Missing category, address, or distance values are identified as unavailable instead of guessed.
-- The nearby-search field mask remains in Google's Pro tier. Rating and current opening hours are deferred to the on-demand detail request in Step 5 instead of raising every nearby search to the Enterprise tier.
-- The first result page may request only useful fields that keep Nearby Search in the Pro tier. It does not request every Pro field merely because the field is available.
-- Enterprise fields are fetched only after the user explicitly opens a result.
-- Enterprise + Atmosphere service fields, including dine-in and takeout, are deferred until their Phase 3 filters are implemented.
+- The default nearby-search field mask remains in Google's Pro tier. An Open now search conditionally adds current opening hours and becomes Enterprise.
+- Minimum rating and rating sorting conditionally add rating and make that search Enterprise.
+- A default first result page requests only useful fields that keep Nearby Search in the Pro tier. An active Enterprise search filter may add only the field it requires.
+- When no Enterprise search filter is active, Enterprise fields are fetched only after the user explicitly opens a result. Enterprise search filters request only their required fields conditionally.
+- Dine-in and takeout are requested only when their corresponding Phase 3 filter is active. They are not displayed as extra result-summary data.
 - Each result has a **View details** control. Opening it requests only that place's rating, rating count, current opening hours and open status, phone, and website.
 - A fetched detail response is cached in browser memory while the current result list remains rendered. Closing and reopening the same result does not make another request; changing the search clears the cache and aborts in-flight detail requests.
 - Ratings identify their provider, current open status remains distinct from operational business status, and unavailable detail values are labelled instead of inferred.
@@ -138,7 +206,7 @@ Map selection and device current location remain together in Phase 5.
 - Selecting **Show number** reveals the already-fetched value without another detail request and **Hide number** conceals it again.
 - Provider attribution remains visible on every result.
 - Adding summary information does not create another Google request.
-- Loading the first result list never requests an Enterprise or Enterprise + Atmosphere field.
+- Loading a default first result list requests no Enterprise or Enterprise + Atmosphere field. Active Enterprise filters conditionally request only current opening hours and/or rating; active service filters conditionally request only dine-in and/or takeout.
 - Opening one result produces at most one on-demand Enterprise detail request for that selected place, not one request for every search result.
 - Loading or reloading the page and rendering search summaries produce zero place-detail requests.
 - The place-detail endpoint and response use `Cache-Control: no-store`, and the API key remains only in the server-to-Google header.

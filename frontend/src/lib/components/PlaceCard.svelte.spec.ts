@@ -20,6 +20,10 @@ const place: Place = {
 	address: '1 Front Street, Toronto, ON',
 	coordinates: { latitude: 43.6454, longitude: -79.3805 },
 	business_status: 'operational',
+	open_now: true,
+	rating: 4.6,
+	dine_in: null,
+	takeout: null,
 	distance_meters: 421
 };
 
@@ -42,6 +46,8 @@ describe('PlaceCard', () => {
 
 		await expect.element(page.getByRole('heading', { name: 'Example Restaurant' })).toBeVisible();
 		await expect.element(page.getByText('421 m away')).toBeVisible();
+		await expect.element(page.getByText('Open now')).toBeVisible();
+		await expect.element(page.getByText('Google Maps rating: 4.6/5')).toBeVisible();
 		await expect.element(page.getByRole('link', { name: 'Get directions' })).toBeVisible();
 		expect(getPlaceDetails).not.toHaveBeenCalled();
 	});

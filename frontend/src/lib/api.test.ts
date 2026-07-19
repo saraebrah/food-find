@@ -22,7 +22,17 @@ describe('FoodFind API client', () => {
 				latitude: 43.6532,
 				longitude: -79.3832
 			},
-			radius_meters: 1_000
+			radius_meters: 1_000,
+			filters: {
+				place_types: ['restaurant', 'cafe'],
+				cuisines: [],
+				common_foods: [],
+				open_now: false,
+				minimum_rating: null,
+				dine_in: false,
+				takeout: false
+			},
+			sort: 'provider_default'
 		});
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -35,7 +45,17 @@ describe('FoodFind API client', () => {
 					latitude: 43.6532,
 					longitude: -79.3832
 				},
-				radius_meters: 1_000
+				radius_meters: 1_000,
+				filters: {
+					place_types: ['restaurant', 'cafe'],
+					cuisines: [],
+					common_foods: [],
+					open_now: false,
+					minimum_rating: null,
+					dine_in: false,
+					takeout: false
+				},
+				sort: 'provider_default'
 			}),
 			signal: undefined
 		});
@@ -74,7 +94,17 @@ describe('FoodFind API client', () => {
 		await expect(
 			searchPlaces({
 				location: { label: 'Toronto', latitude: 43.65, longitude: -79.38 },
-				radius_meters: 1_000
+				radius_meters: 1_000,
+				filters: {
+					place_types: ['restaurant', 'cafe'],
+					cuisines: [],
+					common_foods: [],
+					open_now: false,
+					minimum_rating: null,
+					dine_in: false,
+					takeout: false
+				},
+				sort: 'provider_default'
 			})
 		).rejects.toEqual(new ApiError(502));
 	});
