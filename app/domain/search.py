@@ -63,8 +63,6 @@ class SearchFilters:
             raise ValueError("Cuisines must be unique")
         if len(set(self.common_foods)) != len(self.common_foods):
             raise ValueError("Common foods must be unique")
-        if self.cuisines and self.common_foods:
-            raise ValueError("Cuisine and common food cannot be combined")
 
 
 class SearchSort(str, Enum):

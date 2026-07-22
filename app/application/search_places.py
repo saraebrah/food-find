@@ -29,25 +29,33 @@ class SearchPlaces:
             filters=criteria.filters,
             sort=criteria.sort,
         )
-        normalized_places = [
-            replace(
-                place,
-                distance_meters=straight_line_distance_meters(
-                    criteria.location.coordinates,
-                    place.coordinates,
-                ),
+        normalized_places: list[Place] = []
+        for place in places:
+            distance_meters = straight_line_distance_meters(
+                criteria.location.coordinates,
+                place.coordinates,
             )
-            for place in places
-            if place.business_status not in EXCLUDED_BUSINESS_STATUSES
-            and (not criteria.filters.open_now or place.open_now is True)
-            and (not criteria.filters.dine_in or place.dine_in is True)
-            and (not criteria.filters.takeout or place.takeout is True)
-            and (
-                criteria.filters.minimum_rating is None
-                or place.rating is not None
-                and place.rating >= criteria.filters.minimum_rating.value
+            if distance_meters > criteria.radius_meters:
+                continue
+            if place.business_status in EXCLUDED_BUSINESS_STATUSES:
+                continue
+            if criteria.filters.open_now and place.open_now is not True:
+                continue
+            if criteria.filters.dine_in and place.dine_in is not True:
+                continue
+            if criteria.filters.takeout and place.takeout is not True:
+                continue
+            if (
+                criteria.filters.minimum_rating is not None
+                and (
+                    place.rating is None
+                    or place.rating < criteria.filters.minimum_rating.value
+                )
+            ):
+                continue
+            normalized_places.append(
+                replace(place, distance_meters=distance_meters)
             )
-        ]
         if criteria.sort is SearchSort.RATING:
             return sorted(
                 normalized_places,

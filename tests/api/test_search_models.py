@@ -171,7 +171,7 @@ def test_search_request_normalizes_cuisine_and_distance_sort() -> None:
     assert criteria.sort is SearchSort.DISTANCE
 
 
-def test_search_request_normalizes_common_food() -> None:
+def test_search_request_normalizes_cuisine_and_common_food_together() -> None:
     request = SearchPlacesRequest(
         location=SelectedLocationRequest(
             label="Toronto City Hall",
@@ -181,11 +181,12 @@ def test_search_request_normalizes_common_food() -> None:
         radius_meters=1_000,
         filters={
             "place_types": ["restaurant"],
-            "cuisines": [],
+            "cuisines": ["persian"],
             "common_foods": ["pizza", "ramen"],
         },
     )
 
+    assert request.to_domain().filters.cuisines == (Cuisine.PERSIAN,)
     assert request.to_domain().filters.common_foods == (
         CommonFood.PIZZA,
         CommonFood.RAMEN,
@@ -223,10 +224,9 @@ def test_search_request_rejects_invalid_place_types(
         {"common_foods": ["pasta"]},
         {"cuisines": ["italian", "italian"]},
         {"common_foods": ["pizza", "pizza"]},
-        {"cuisines": ["italian"], "common_foods": ["pizza"]},
     ),
 )
-def test_search_request_rejects_unsupported_or_conflicting_specialties(
+def test_search_request_rejects_unsupported_or_duplicate_specialties(
     filters: dict[str, list[str]],
 ) -> None:
     with pytest.raises(ValidationError):

@@ -179,4 +179,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Review the completed Enterprise filters: Open now, minimum rating, and rating sorting. Do not implement Enterprise + Atmosphere filters until that billing group is explicitly approved.
+Define the provider-independent `SearchIntent` contract for Phase 4 smart search and its boundary with the existing `SearchCriteria`. The completed manual search now uses Google Text Search for all food-business discovery.

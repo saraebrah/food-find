@@ -123,7 +123,8 @@ describe('FoodFind page request lifecycle', () => {
 		render(FoodFindPage);
 
 		await page.getByRole('checkbox', { name: 'Italian' }).click();
-		await expect.element(page.getByRole('checkbox', { name: 'Pizza' })).toBeDisabled();
+		await page.getByRole('checkbox', { name: 'Pizza' }).click();
+		await expect.element(page.getByRole('checkbox', { name: 'Pizza' })).toBeEnabled();
 		await page.getByRole('checkbox', { name: 'Open now' }).click();
 		await page.getByRole('checkbox', { name: 'Dine-in' }).click();
 		await page.getByRole('checkbox', { name: 'Takeout' }).click();
@@ -137,7 +138,7 @@ describe('FoodFind page request lifecycle', () => {
 				filters: {
 					place_types: ['restaurant', 'cafe'],
 					cuisines: ['italian'],
-					common_foods: [],
+					common_foods: ['pizza'],
 					open_now: true,
 					minimum_rating: 4.5,
 					dine_in: true,
@@ -147,10 +148,6 @@ describe('FoodFind page request lifecycle', () => {
 			}),
 			expect.any(AbortSignal)
 		);
-
-		await page.getByRole('checkbox', { name: 'Italian' }).click();
-		await page.getByRole('checkbox', { name: 'Pizza' }).click();
-		await expect.element(page.getByRole('checkbox', { name: 'Italian' })).toBeDisabled();
 	});
 
 	it('requires at least one place type before searching', async () => {

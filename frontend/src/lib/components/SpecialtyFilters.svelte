@@ -54,11 +54,7 @@
 <div class="specialty-filters">
 	<fieldset class="choice-filter" aria-describedby="cuisine-help">
 		<legend>Cuisine</legend>
-		<p id="cuisine-help">
-			{commonFoods.length > 0
-				? 'Clear common food selections to choose a cuisine.'
-				: 'Matches any selected cuisine.'}
-		</p>
+		<p id="cuisine-help">Matches any selected cuisine.</p>
 		<div class="choice-options">
 			{#each cuisineOptions as option}
 				<label class="choice-option">
@@ -66,7 +62,7 @@
 						type="checkbox"
 						value={option.value}
 						checked={cuisines.includes(option.value)}
-						disabled={disabled || commonFoods.length > 0}
+						disabled={disabled}
 						onchange={(event) =>
 							toggleCuisine(option.value, (event.currentTarget as HTMLInputElement).checked)}
 					/>
@@ -79,9 +75,7 @@
 	<fieldset class="choice-filter" aria-describedby="common-food-help">
 		<legend>Common food</legend>
 		<p id="common-food-help">
-			{cuisines.length > 0
-				? 'Clear cuisine selections to choose a common food.'
-				: 'Matches a provider category, not confirmed menu availability.'}
+			Can be combined with cuisine. A match does not confirm current menu availability.
 		</p>
 		<div class="choice-options">
 			{#each commonFoodOptions as option}
@@ -90,7 +84,7 @@
 						type="checkbox"
 						value={option.value}
 						checked={commonFoods.includes(option.value)}
-						disabled={disabled || cuisines.length > 0}
+						disabled={disabled}
 						onchange={(event) =>
 							toggleCommonFood(
 								option.value,

@@ -40,9 +40,11 @@ def test_search_filters_require_unique_non_empty_place_types(
         SearchFilters(place_types=place_types)
 
 
-def test_search_filters_do_not_mix_cuisine_and_common_food() -> None:
-    with pytest.raises(ValueError):
-        SearchFilters(
-            cuisines=(Cuisine.ITALIAN,),
-            common_foods=(CommonFood.PIZZA,),
-        )
+def test_search_filters_allow_cuisine_and_common_food_together() -> None:
+    filters = SearchFilters(
+        cuisines=(Cuisine.ITALIAN,),
+        common_foods=(CommonFood.PIZZA,),
+    )
+
+    assert filters.cuisines == (Cuisine.ITALIAN,)
+    assert filters.common_foods == (CommonFood.PIZZA,)

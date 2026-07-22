@@ -81,5 +81,6 @@ Frontend tests intercept or mock FoodFind API responses and never call Google.
 - [`docs/roadmap.md`](docs/roadmap.md): build order and status
 - [`docs/features.md`](docs/features.md): feature behavior
 - [`docs/decisions.md`](docs/decisions.md): product and technical decisions
+- [`docs/google-places-search-limitations.md`](docs/google-places-search-limitations.md): Google search limitations and their FoodFind implications
 - [`docs/concepts.md`](docs/concepts.md): implementation concepts explained
 - [`docs/phase-1-overview.md`](docs/phase-1-overview.md): Phase 1 architecture and file-by-file walkthrough

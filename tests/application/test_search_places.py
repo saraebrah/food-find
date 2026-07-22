@@ -82,6 +82,17 @@ class RecordingPlaceProvider:
                 business_status=None,
                 open_now=None,
             ),
+            Place(
+                provider="google",
+                provider_place_id="outside-radius",
+                name="Outside Radius Restaurant",
+                category="Restaurant",
+                category_code="restaurant",
+                address="Outside the selected area",
+                coordinates=Coordinates(latitude=43.70, longitude=-79.3805),
+                business_status="operational",
+                open_now=True,
+            ),
         ]
 
 
