@@ -343,7 +343,7 @@ Changing the radius clears the visible result state but does not search. When th
 ## Place-type filter
 
 - **Date:** 2026-07-18
-- **Status:** Current approach
+- **Status:** Provider mapping superseded by Text Search-only discovery on 2026-07-21; the FoodFind filter contract remains current
 
 ### Decision
 
@@ -379,7 +379,7 @@ Google's current Nearby Search type table does not contain a generic `food_truck
 ## Pro cuisine, common-food, and distance filters
 
 - **Date:** 2026-07-18
-- **Status:** Current approach
+- **Status:** Provider mapping and cuisine/common-food exclusion superseded by Text Search-only discovery on 2026-07-21
 
 ### Decision
 
@@ -486,7 +486,7 @@ Current location remains combined with the map phase. Delaying the map therefore
 ## Open-now filter
 
 - **Date:** 2026-07-18
-- **Status:** Current approach
+- **Status:** Provider request behavior superseded by Text Search-only discovery on 2026-07-21; missing-data behavior remains current
 
 ### Decision
 
@@ -515,7 +515,7 @@ Results retained by the filter carry `open_now=true` in the normalized summary a
 ## Enterprise rating filters
 
 - **Date:** 2026-07-18
-- **Status:** Current approach
+- **Status:** Minimum-rating request behavior superseded by Text Search-only discovery on 2026-07-21; filter and sorting behavior remain current
 
 ### Decision
 
@@ -547,7 +547,7 @@ When present, the summary displays the already-returned rating with Google Maps 
 ## Enterprise + Atmosphere service filters
 
 - **Date:** 2026-07-18
-- **Status:** Current approach
+- **Status:** Request endpoint superseded by Text Search-only discovery on 2026-07-21; conditional fields and filter behavior remain current
 
 ### Decision
 
@@ -571,3 +571,43 @@ The filters operate on the maximum 20 candidates Google returns. The visible res
 
 - Google classifies `places.dineIn` and `places.takeout` as Nearby Search Enterprise + Atmosphere fields: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
 - Google's Nearby Search request schema has no dine-in or takeout filter parameter and returns at most 20 candidates: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
+
+## Text Search-only food discovery
+
+- **Date:** 2026-07-21
+- **Status:** Current approach
+
+### Decision
+
+All food-business discovery uses Google Text Search. FoodFind does not route individual searches between Nearby Search and Text Search. Google location autocomplete, selected-location resolution, and on-demand Place Details remain separate and unchanged.
+
+One explicit FoodFind search produces one Text Search request with `pageSize=20`. The current implementation does not request continuation batches; automatic top-up and infinite scrolling remain future work. Rendering, reloading, and editing criteria still produce no search request.
+
+The Google adapter constructs a deterministic `textQuery` from the submitted place types, cuisines, and common foods. Cuisine and common food can now coexist. Their presence means Google text relevance, not verified menu availability.
+
+Text Search accepts only one strict `includedType`. When exactly one place type is selected, FoodFind sends that value with `strictTypeFiltering=true`. When several place types are selected, all are included in `textQuery`; FoodFind also requests `places.types` and removes a returned place when its known types match none of the selections. Missing type data remains unconfirmed rather than being inferred.
+
+Text Search can restrict a categorical query to a rectangle, not a circle. For ordinary locations, FoodFind calculates a rectangle enclosing the submitted circle. Near a pole or when the circle crosses the antimeridian, where one valid rectangle cannot represent that area, it uses a circular location bias instead. In every case, the application calculates exact straight-line distance from the immutable submitted location and removes results outside the selected radius.
+
+An active Open now filter sends `openNow=true`; an active minimum rating sends `minRating`. FoodFind still requests the corresponding response fields conditionally and verifies returned normalized values. Rating sorting remains application-side because Text Search does not rank by rating. Dine-in and Takeout remain conditional response fields followed by application-side filtering because Text Search has no request parameters for them.
+
+### Rationale
+
+- Text Search supports combined cuisine and common-food language instead of forcing both concepts into one misleading primary-type OR restriction.
+- Provider-side Open now and minimum-rating filters preserve more relevant candidates than filtering those criteria only after a fixed Nearby Search result set.
+- Continuation tokens provide a supported path to later automatic top-up and infinite scrolling.
+- One discovery endpoint gives manual filters and the future LLM interpretation one consistent Google request path.
+- Keeping the normalized provider port and application filtering preserves replaceability and testability.
+
+### Tradeoffs
+
+- Multiple selected place types cannot all be expressed through strict `includedType`; query relevance plus defensive returned-type filtering is less exact than Nearby Search's multiple type restriction.
+- Rectangular restriction can return candidates outside the selected circle, so local filtering may shorten a batch.
+- Text relevance does not verify that a restaurant currently serves a requested dish.
+- The current single batch remains capped at 20 candidates and is not a complete business directory.
+
+### Current provider references
+
+- Text Search supports `textQuery`, one `includedType`, `strictTypeFiltering`, `openNow`, `minRating`, `rankPreference`, `pageSize`, and continuation tokens: [Text Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchText).
+- Text Search location restriction accepts a rectangular viewport: [Text Search location restriction](https://developers.google.com/maps/documentation/places/web-service/text-search#location-restriction).
+- Text Search billing is controlled by the requested response field mask: [Text Search field masks](https://developers.google.com/maps/documentation/places/web-service/text-search#fieldmask).

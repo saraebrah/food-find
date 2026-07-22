@@ -77,6 +77,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 
 	await page.getByRole('checkbox', { name: 'Bakery' }).click();
 	await page.getByRole('checkbox', { name: 'Thai' }).click();
+	await page.getByRole('checkbox', { name: 'Pizza' }).click();
 	await page.getByRole('checkbox', { name: 'Open now' }).click();
 	await page.getByRole('checkbox', { name: 'Dine-in' }).click();
 	await page.getByRole('checkbox', { name: 'Takeout' }).click();
@@ -90,7 +91,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 		filters: {
 			place_types: ['restaurant', 'cafe', 'bakery'],
 			cuisines: ['thai'],
-			common_foods: [],
+			common_foods: ['pizza'],
 			open_now: true,
 			minimum_rating: 4.5,
 			dine_in: true,

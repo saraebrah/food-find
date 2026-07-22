@@ -17,7 +17,7 @@ Phase 1 built the smallest complete FoodFind data flow:
 
 This is often called a vertical slice: one thin but complete path through the browser, backend, external provider, internal models, and tests.
 
-The current fixed search uses:
+The Phase 1 fixed search used:
 
 - Toronto City Hall: latitude `43.6532`, longitude `-79.3832`
 - radius: `1,000` metres
@@ -236,21 +236,21 @@ A protocol is primarily a design and type-checking contract; it does not automat
 
 Purpose:
 
-- Contains everything specific to Google Places nearby search.
+- Contains everything specific to Google Places Text Search and Place Details.
 - Converts between FoodFind's provider call and Google's API format.
 - Prevents Google response shapes from leaking into the application.
 
 Constants:
 
-- `GOOGLE_NEARBY_SEARCH_URL`: Google's nearby-search endpoint.
-- `GOOGLE_FIELD_MASK`: the exact Google fields Phase 1 requests.
+- `GOOGLE_TEXT_SEARCH_URL`: Google's Text Search endpoint.
+- `GOOGLE_FIELD_MASK`: the exact Google fields a current result search requests by default.
 
 Google-only response models:
 
 - `GoogleLocalizedText`
 - `GoogleLocation`
 - `GooglePlaceRecord`
-- `GoogleNearbySearchResponse`
+- `GoogleTextSearchResponse`
 
 These Pydantic models validate Google's JSON. Aliases such as `displayName` allow Google camelCase input to become normal Python attributes such as `display_name` inside the adapter.
 
@@ -278,12 +278,13 @@ Prerequisites:
 
 1. Rejects an empty place-type collection.
 2. Rejects radii outside `0 < radius <= 50,000` metres.
-3. Builds the Google headers and JSON request body.
+3. Builds a deterministic text query and geographic restriction from FoodFind's search filters and radius.
 4. Sends one asynchronous `POST` request.
-5. Raises an HTTP error for a failed Google response.
-6. Validates successful JSON with `GoogleNearbySearchResponse`.
-7. Converts every Google record into a FoodFind `Place`.
-8. Returns `list[Place]`.
+5. Converts a failed Google response into a provider-neutral `PlaceProviderError`.
+6. Validates successful JSON with `GoogleTextSearchResponse`.
+7. Removes results whose known Google types do not match any selected place type.
+8. Converts every retained Google record into a FoodFind `Place`.
+9. Returns `list[Place]`.
 
 `GooglePlacesGateway._to_place(...)`:
 
@@ -498,23 +499,23 @@ Purpose:
 
 - Tests the Google adapter without using the internet or a real key.
 
-`test_search_nearby_makes_one_server_side_google_request()` verifies:
+`test_text_search_makes_one_server_side_google_request()` verifies:
 
 - exactly one request is made
 - HTTP method and URL
 - key and field-mask headers
 - the key is absent from the URL and body
-- request coordinates, radius, and types
+- deterministic query text, geographic restriction, filters, and sorting
 - Google JSON is normalized into the expected FoodFind `Place`
 
-`test_search_nearby_preserves_missing_optional_place_fields()` verifies:
+`test_text_search_preserves_missing_optional_place_fields()` verifies:
 
 - missing Google category and address values become `None`
 - FoodFind does not invent missing provider data
 
-`test_search_nearby_raises_for_google_error_response()` verifies:
+`test_text_search_translates_google_error_response()` verifies:
 
-- a Google error such as HTTP `429` becomes an `httpx.HTTPStatusError`
+- a Google error such as HTTP `429` becomes a provider-neutral `PlaceProviderError`
 
 The local `handle_request(...)` functions are fake HTTP handlers used by `httpx.MockTransport`. They inspect outgoing requests and return controlled fake Google responses.
 

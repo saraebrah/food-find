@@ -3,7 +3,6 @@ from pydantic import (
     ConfigDict,
     Field,
     field_validator,
-    model_validator,
 )
 
 from app.domain.location import SelectedLocation
@@ -88,12 +87,6 @@ class SearchFiltersRequest(BaseModel):
         if len(set(common_foods)) != len(common_foods):
             raise ValueError("Common foods must be unique")
         return common_foods
-
-    @model_validator(mode="after")
-    def specialties_must_not_conflict(self) -> "SearchFiltersRequest":
-        if self.cuisines and self.common_foods:
-            raise ValueError("Cuisine and common food cannot be combined")
-        return self
 
     def to_domain(self) -> SearchFilters:
         return SearchFilters(

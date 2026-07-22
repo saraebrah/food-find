@@ -1,3 +1,4 @@
+from math import asin, cos, degrees, pi, radians, sin
 from urllib.parse import quote
 
 import httpx
@@ -5,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.place import Coordinates, Place, PlaceDetails
 from app.domain.search import (
+    EARTH_RADIUS_METERS,
     CommonFood,
     Cuisine,
     PlaceType,
@@ -14,12 +16,13 @@ from app.domain.search import (
 from app.ports.place_provider import PlaceProvider, PlaceProviderError
 
 
-GOOGLE_NEARBY_SEARCH_URL = "https://places.googleapis.com/v1/places:searchNearby"
+GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 GOOGLE_FIELD_MASK = ",".join(
     (
         "places.id",
         "places.displayName",
         "places.primaryType",
+        "places.types",
         "places.primaryTypeDisplayName",
         "places.formattedAddress",
         "places.location",
@@ -70,6 +73,7 @@ class GooglePlaceRecord(BaseModel):
     id: str
     display_name: GoogleLocalizedText = Field(alias="displayName")
     primary_type: str | None = Field(default=None, alias="primaryType")
+    types: list[str] = Field(default_factory=list)
     primary_type_display_name: GoogleLocalizedText | None = Field(
         default=None, alias="primaryTypeDisplayName"
     )
@@ -85,7 +89,7 @@ class GooglePlaceRecord(BaseModel):
     takeout: bool | None = None
 
 
-class GoogleNearbySearchResponse(BaseModel):
+class GoogleTextSearchResponse(BaseModel):
     places: list[GooglePlaceRecord] = Field(default_factory=list)
 
 
@@ -125,19 +129,25 @@ GOOGLE_PLACE_TYPES = {
     PlaceType.BAR: "bar",
     PlaceType.BAKERY: "bakery",
 }
-GOOGLE_CUISINES = {
-    Cuisine.CHINESE: "chinese_restaurant",
-    Cuisine.ITALIAN: "italian_restaurant",
-    Cuisine.PERSIAN: "persian_restaurant",
-    Cuisine.THAI: "thai_restaurant",
-    Cuisine.INDIAN: "indian_restaurant",
+GOOGLE_PLACE_TYPE_QUERY_TEXT = {
+    PlaceType.RESTAURANT: "restaurants",
+    PlaceType.CAFE: "cafes",
+    PlaceType.BAR: "bars",
+    PlaceType.BAKERY: "bakeries",
 }
-GOOGLE_COMMON_FOODS = {
-    CommonFood.PIZZA: "pizza_restaurant",
-    CommonFood.BURGER: "hamburger_restaurant",
-    CommonFood.STEAK: "steak_house",
-    CommonFood.RAMEN: "ramen_restaurant",
-    CommonFood.KEBAB: "kebab_shop",
+GOOGLE_CUISINE_QUERY_TEXT = {
+    Cuisine.CHINESE: "Chinese",
+    Cuisine.ITALIAN: "Italian",
+    Cuisine.PERSIAN: "Persian",
+    Cuisine.THAI: "Thai",
+    Cuisine.INDIAN: "Indian",
+}
+GOOGLE_COMMON_FOOD_QUERY_TEXT = {
+    CommonFood.PIZZA: "pizza",
+    CommonFood.BURGER: "burgers",
+    CommonFood.STEAK: "steak",
+    CommonFood.RAMEN: "ramen",
+    CommonFood.KEBAB: "kebab",
 }
 
 
@@ -166,6 +176,86 @@ class GooglePlacesGateway(PlaceProvider):
             conditional_fields.append(GOOGLE_TAKEOUT_FIELD)
         return ",".join((GOOGLE_FIELD_MASK, *conditional_fields))
 
+    @staticmethod
+    def _build_text_query(*, filters: SearchFilters) -> str:
+        place_types = " or ".join(
+            GOOGLE_PLACE_TYPE_QUERY_TEXT[place_type]
+            for place_type in filters.place_types
+        )
+        parts = [place_types]
+        if filters.cuisines:
+            cuisines = " or ".join(
+                GOOGLE_CUISINE_QUERY_TEXT[cuisine]
+                for cuisine in filters.cuisines
+            )
+            parts.append(f"with {cuisines} cuisine")
+        if filters.common_foods:
+            foods = " or ".join(
+                GOOGLE_COMMON_FOOD_QUERY_TEXT[food]
+                for food in filters.common_foods
+            )
+            parts.append(f"serving {foods}")
+        return " ".join(parts)
+
+    @staticmethod
+    def _location_parameter(
+        *,
+        latitude: float,
+        longitude: float,
+        radius_meters: float,
+    ) -> dict[str, object]:
+        angular_radius = radius_meters / EARTH_RADIUS_METERS
+        latitude_radians = radians(latitude)
+        longitude_radians = radians(longitude)
+        minimum_latitude = max(-pi / 2, latitude_radians - angular_radius)
+        maximum_latitude = min(pi / 2, latitude_radians + angular_radius)
+
+        if minimum_latitude <= -pi / 2 or maximum_latitude >= pi / 2:
+            return {
+                "locationBias": {
+                    "circle": {
+                        "center": {
+                            "latitude": latitude,
+                            "longitude": longitude,
+                        },
+                        "radius": float(radius_meters),
+                    }
+                }
+            }
+
+        longitude_delta = asin(
+            min(1.0, sin(angular_radius) / cos(latitude_radians))
+        )
+        minimum_longitude = longitude_radians - longitude_delta
+        maximum_longitude = longitude_radians + longitude_delta
+        if minimum_longitude < -pi or maximum_longitude > pi:
+            return {
+                "locationBias": {
+                    "circle": {
+                        "center": {
+                            "latitude": latitude,
+                            "longitude": longitude,
+                        },
+                        "radius": float(radius_meters),
+                    }
+                }
+            }
+
+        return {
+            "locationRestriction": {
+                "rectangle": {
+                    "low": {
+                        "latitude": degrees(minimum_latitude),
+                        "longitude": degrees(minimum_longitude),
+                    },
+                    "high": {
+                        "latitude": degrees(maximum_latitude),
+                        "longitude": degrees(maximum_longitude),
+                    },
+                }
+            }
+        }
+
     async def search_nearby(
         self,
         *,
@@ -181,34 +271,33 @@ class GooglePlacesGateway(PlaceProvider):
             raise ValueError("Radius must be greater than zero and at most 50,000 metres")
 
         request_body: dict[str, object] = {
-            "includedTypes": [
-                GOOGLE_PLACE_TYPES[place_type]
-                for place_type in filters.place_types
-            ],
-            "maxResultCount": 20,
-            "locationRestriction": {
-                "circle": {
-                    "center": {
-                        "latitude": latitude,
-                        "longitude": longitude,
-                    },
-                    "radius": float(radius_meters),
-                }
-            },
+            "textQuery": self._build_text_query(filters=filters),
+            "pageSize": 20,
+            **self._location_parameter(
+                latitude=latitude,
+                longitude=longitude,
+                radius_meters=radius_meters,
+            ),
         }
-        specialty_types = (
-            [GOOGLE_CUISINES[cuisine] for cuisine in filters.cuisines]
-            if filters.cuisines
-            else [GOOGLE_COMMON_FOODS[food] for food in filters.common_foods]
-        )
-        if specialty_types:
-            request_body["includedPrimaryTypes"] = specialty_types
+        if len(filters.place_types) == 1:
+            request_body["includedType"] = GOOGLE_PLACE_TYPES[
+                filters.place_types[0]
+            ]
+            request_body["strictTypeFiltering"] = True
+        if filters.open_now:
+            request_body["openNow"] = True
+        if filters.minimum_rating is not None:
+            request_body["minRating"] = filters.minimum_rating.value
         if sort is SearchSort.DISTANCE:
             request_body["rankPreference"] = "DISTANCE"
 
+        selected_google_types = frozenset(
+            GOOGLE_PLACE_TYPES[place_type] for place_type in filters.place_types
+        )
+
         try:
             response = await self._http_client.post(
-                GOOGLE_NEARBY_SEARCH_URL,
+                GOOGLE_TEXT_SEARCH_URL,
                 headers={
                     "Content-Type": "application/json",
                     "X-Goog-Api-Key": self._api_key,
@@ -220,11 +309,17 @@ class GooglePlacesGateway(PlaceProvider):
                 json=request_body,
             )
             response.raise_for_status()
-            google_response = GoogleNearbySearchResponse.model_validate(response.json())
+            google_response = GoogleTextSearchResponse.model_validate(
+                response.json()
+            )
         except (httpx.HTTPError, ValueError) as error:
             raise PlaceProviderError("Google Places search failed") from error
 
-        return [self._to_place(place) for place in google_response.places]
+        return [
+            self._to_place(place)
+            for place in google_response.places
+            if not place.types or selected_google_types.intersection(place.types)
+        ]
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails:
         if not provider_place_id.strip():
