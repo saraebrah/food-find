@@ -218,6 +218,35 @@ Map selection and device current location remain together in Phase 5.
 - Rendering website, phone, or directions actions does not increase the place-provider call count.
 - Automated tests verify field mapping, distance calculation, API output, and missing-field text without calling Google.
 
+## Smart-search interpretation
+
+### Current foundation
+
+- `SearchIntent` contains the existing `SearchCriteria` plus descriptive requirements, an optional availability window, resolved assumptions, and unsupported criteria.
+- `SearchCriteria` remains the provider-independent contract for the location, radius, filters, and sort that the current search can execute.
+- Availability windows use concrete timezone-aware start and end times.
+- Defining or constructing an intent makes no LLM or Google request.
+
+### Planned behavior
+
+- The LLM converts a natural-language request into a validated, provider-independent `SearchIntent`.
+- The intent keeps structured filters, descriptive requirements, resolved assumptions, and unsupported criteria separate.
+- Assumptions are visible and editable before the search runs.
+- Within one filter group, multiple values mean **OR**; across different groups, they mean **AND**.
+- Descriptive requirements without a dedicated filter, such as `quiet` or `serves kebab`, remain in the Text Search query.
+- A text match is not presented as a verified fact. For a requested dish, the result explains: **“Kebab availability is not verified—check the menu or call.”**
+- Criteria that cannot be used safely are identified instead of being silently ignored or presented as satisfied.
+
+### Language defaults
+
+- **Good rated** means a minimum rating of 4.0.
+- **Highly rated** means a minimum rating of 4.5.
+- **Best** or **top rated** means rating sort with no invented minimum.
+- **Tonight** means 6 p.m. to midnight, and **dinner** means 5 p.m. to 10 p.m.
+- A specific time, such as **at 7 p.m.**, means open at that time.
+- If a requested time window has already started, the window begins at the current time.
+- The interpreted time window is visible and editable.
+
 ## Place and address autocomplete
 
 ### Current behavior
