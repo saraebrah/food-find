@@ -611,3 +611,43 @@ An active Open now filter sends `openNow=true`; an active minimum rating sends `
 - Text Search supports `textQuery`, one `includedType`, `strictTypeFiltering`, `openNow`, `minRating`, `rankPreference`, `pageSize`, and continuation tokens: [Text Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchText).
 - Text Search location restriction accepts a rectangular viewport: [Text Search location restriction](https://developers.google.com/maps/documentation/places/web-service/text-search#location-restriction).
 - Text Search billing is controlled by the requested response field mask: [Text Search field masks](https://developers.google.com/maps/documentation/places/web-service/text-search#fieldmask).
+
+## Smart-search interpretation defaults
+
+- **Date:** 2026-07-22
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+The LLM produces a provider-independent `SearchIntent`. It keeps structured filters, descriptive requirements, resolved assumptions, and unsupported criteria separate so FoodFind can validate them before searching.
+
+Rating language uses these defaults:
+
+- **Good rated:** minimum 4.0
+- **Highly rated:** minimum 4.5
+- **Best** or **top rated:** sort by rating without inventing a minimum
+
+Time language uses these editable defaults:
+
+- **Tonight:** 6 p.m. to midnight
+- **Dinner:** 5 p.m. to 10 p.m.
+- **At 7 p.m.:** open at that exact time
+- If a time window is already underway, start it at the current time.
+
+Multiple values within one group use **OR**, while different groups combine with **AND**. For example, Persian or Italian cuisines serving pizza or kebab.
+
+Requirements without a dedicated filter, such as a dish or atmosphere preference, remain in the intent and may be included in Text Search. FoodFind does not present text relevance as proof. For example: **“Kebab availability is not verified—check the menu or call.”** A criterion that cannot be used safely is shown as unsupported rather than silently discarded or claimed as satisfied.
+
+`SearchIntent` now keeps five explicit parts:
+
+- `search_criteria`: the existing location, radius, structured filters, and sort
+- `descriptive_requirements`: useful text-relevance criteria without dedicated filters
+- `availability_window`: optional timezone-aware start and end times
+- `assumptions`: the original phrase and its visible interpretation
+- `unsupported_criteria`: the request and the reason it cannot be applied safely
+
+Only `search_criteria` is executable by the current place-search use case. Keeping the remaining meaning beside it prevents later LLM integration from silently discarding information or sending provider-specific parameters into the domain.
+
+### Rationale
+
+This preserves what the user asked for while keeping assumptions reviewable and preventing likely matches from being presented as verified facts.

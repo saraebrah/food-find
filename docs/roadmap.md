@@ -88,7 +88,10 @@ Manual controls establish the search model that smart search will later use. A f
    - Restrict Google to a rectangle enclosing the selected circle, calculate exact straight-line distance in FoodFind, and remove outside-radius candidates.
    - Send Open now and minimum rating as Text Search request filters. Continue to request only the response fields required by active filters and sorts.
    - Keep the MVP to one Google request per submitted search and one batch of up to 20 candidates. Pagination and infinite scrolling remain future enhancements.
-2. Define a provider-independent `SearchIntent` for the LLM's structured output, including resolved assumptions and criteria that are not yet expressible by `SearchFilters`.
+2. [x] Define a provider-independent `SearchIntent` for the LLM's structured output.
+   - Keep structured filters, descriptive requirements, assumptions, and unsupported criteria separate.
+   - Use the agreed rating and time-language defaults in `docs/decisions.md`.
+   - Preserve useful descriptive terms for Text Search, but do not present text relevance as a verified fact.
 3. Add a server-side LLM interpreter behind a replaceable port. Validate its structured output with Pydantic, keep its API key server-side, and mock all LLM responses in automated tests.
 4. Give the interpreter the selected location, current date and timezone, and FoodFind's supported capabilities. Until Phase 5 adds device location, interpret **near me** as the visible selected location and state that assumption.
 5. Add time-aware availability so phrases such as **open tonight** become a visible, editable time window rather than being approximated as **Open now**.
@@ -174,10 +177,9 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 ## Current next task
 
-Start Phase 4 Step 2 by defining the LLM `SearchIntent` contract and its boundary with the existing `SearchCriteria`, without integrating an LLM provider or making an LLM call yet.
+Start Phase 4 Step 3 by adding a server-side LLM interpreter behind a replaceable port, validating its output with Pydantic, and using mocked LLM responses in automated tests.
 
 ## Open decisions
 
 - Map provider
 - LLM provider and model for development and later hosted use
-- The user-facing definition and default time window for relative phrases such as **tonight**

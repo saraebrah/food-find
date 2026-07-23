@@ -41,6 +41,5 @@ A task is done when:
 - The implementation matches the documented requirements.
 - Relevant docs are updated.
 - The app runs locally.
-- The code is committed on a feature branch.
 - Tests, linting, or build checks pass if available.
 - Known limitations or follow-up tasks are documented.

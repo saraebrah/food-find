@@ -47,9 +47,12 @@ Example requests:
 - Map
 - The search box must accept short keywords, such as `Thai food`.
 - The search box must accept natural-language requests, such as `Persian restaurants within three kilometres that are open now`.
-- The interpreted request must be represented as visible, editable filters.
+- The interpreted request must be represented as visible, editable search criteria.
+- The interpretation must show any assumptions it made so the user can review and edit them.
 - Location or radius stated in the request must update the corresponding controls.
-- Unsupported or ambiguous parts of a request must not silently become filters.
+- Descriptive requirements that do not have a dedicated filter, such as `quiet` or `serves kebab`, must remain part of the search instead of being silently discarded.
+- Text-based matches must not be presented as verified facts. For example: **“Kebab availability is not verified—check the menu or call.”**
+- Unsupported or ambiguous parts of a request must be identified rather than silently becoming filters.
 - The page should provide sample prompts that demonstrate supported searches.
 
 ### Filters and sorting
@@ -179,4 +182,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Define the provider-independent `SearchIntent` contract for Phase 4 smart search and its boundary with the existing `SearchCriteria`. The completed manual search now uses Google Text Search for all food-business discovery.
+Add the Phase 4 server-side LLM interpreter behind a replaceable port. Its structured output must be validated before it becomes the provider-independent `SearchIntent`; automated tests must use mocked LLM responses.
