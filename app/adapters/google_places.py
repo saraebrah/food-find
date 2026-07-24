@@ -1,10 +1,12 @@
+from datetime import date, datetime, timedelta
 from math import asin, cos, degrees, pi, radians, sin
 from urllib.parse import quote
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.place import Coordinates, Place, PlaceDetails
+from app.domain.place import Coordinates, OpeningPeriod, Place, PlaceDetails
 from app.domain.search import (
     EARTH_RADIUS_METERS,
     CommonFood,
@@ -12,6 +14,10 @@ from app.domain.search import (
     PlaceType,
     SearchFilters,
     SearchSort,
+)
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
 )
 from app.ports.place_provider import PlaceProvider, PlaceProviderError
 
@@ -30,6 +36,7 @@ GOOGLE_FIELD_MASK = ",".join(
     )
 )
 GOOGLE_CURRENT_OPENING_HOURS_FIELD = "places.currentOpeningHours"
+GOOGLE_TIME_ZONE_FIELD = "places.timeZone"
 GOOGLE_RATING_FIELD = "places.rating"
 GOOGLE_DINE_IN_FIELD = "places.dineIn"
 GOOGLE_TAKEOUT_FIELD = "places.takeout"
@@ -57,6 +64,26 @@ class GoogleLocation(BaseModel):
     longitude: float
 
 
+class GoogleDate(BaseModel):
+    year: int
+    month: int
+    day: int
+
+
+class GoogleOpeningPoint(BaseModel):
+    date: GoogleDate | None = None
+    day: int | None = Field(default=None, ge=0, le=6)
+    hour: int = Field(default=0, ge=0, le=23)
+    minute: int = Field(default=0, ge=0, le=59)
+
+
+class GoogleOpeningPeriod(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    opens_at: GoogleOpeningPoint = Field(alias="open")
+    closes_at: GoogleOpeningPoint | None = Field(default=None, alias="close")
+
+
 class GoogleOpeningHours(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -65,6 +92,11 @@ class GoogleOpeningHours(BaseModel):
         default_factory=list,
         alias="weekdayDescriptions",
     )
+    periods: list[GoogleOpeningPeriod] = Field(default_factory=list)
+
+
+class GoogleTimeZone(BaseModel):
+    id: str
 
 
 class GooglePlaceRecord(BaseModel):
@@ -87,6 +119,7 @@ class GooglePlaceRecord(BaseModel):
     rating: float | None = None
     dine_in: bool | None = Field(default=None, alias="dineIn")
     takeout: bool | None = None
+    time_zone: GoogleTimeZone | None = Field(default=None, alias="timeZone")
 
 
 class GoogleTextSearchResponse(BaseModel):
@@ -164,10 +197,17 @@ class GooglePlacesGateway(PlaceProvider):
         return "google"
 
     @staticmethod
-    def _search_field_mask(*, filters: SearchFilters, sort: SearchSort) -> str:
+    def _search_field_mask(
+        *,
+        filters: SearchFilters,
+        sort: SearchSort,
+        availability_window: AvailabilityWindow | None = None,
+    ) -> str:
         conditional_fields: list[str] = []
-        if filters.open_now:
+        if filters.open_now or availability_window is not None:
             conditional_fields.append(GOOGLE_CURRENT_OPENING_HOURS_FIELD)
+        if availability_window is not None:
+            conditional_fields.append(GOOGLE_TIME_ZONE_FIELD)
         if filters.minimum_rating is not None or sort is SearchSort.RATING:
             conditional_fields.append(GOOGLE_RATING_FIELD)
         if filters.dine_in:
@@ -177,7 +217,11 @@ class GooglePlacesGateway(PlaceProvider):
         return ",".join((GOOGLE_FIELD_MASK, *conditional_fields))
 
     @staticmethod
-    def _build_text_query(*, filters: SearchFilters) -> str:
+    def _build_text_query(
+        *,
+        filters: SearchFilters,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+    ) -> str:
         place_types = " or ".join(
             GOOGLE_PLACE_TYPE_QUERY_TEXT[place_type]
             for place_type in filters.place_types
@@ -195,6 +239,9 @@ class GooglePlacesGateway(PlaceProvider):
                 for food in filters.common_foods
             )
             parts.append(f"serving {foods}")
+        parts.extend(
+            requirement.text for requirement in descriptive_requirements
+        )
         return " ".join(parts)
 
     @staticmethod
@@ -264,6 +311,8 @@ class GooglePlacesGateway(PlaceProvider):
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> list[Place]:
         if not filters.place_types:
             raise ValueError("At least one place type is required")
@@ -271,7 +320,10 @@ class GooglePlacesGateway(PlaceProvider):
             raise ValueError("Radius must be greater than zero and at most 50,000 metres")
 
         request_body: dict[str, object] = {
-            "textQuery": self._build_text_query(filters=filters),
+            "textQuery": self._build_text_query(
+                filters=filters,
+                descriptive_requirements=descriptive_requirements,
+            ),
             "pageSize": 20,
             **self._location_parameter(
                 latitude=latitude,
@@ -304,6 +356,7 @@ class GooglePlacesGateway(PlaceProvider):
                     "X-Goog-FieldMask": self._search_field_mask(
                         filters=filters,
                         sort=sort,
+                        availability_window=availability_window,
                     ),
                 },
                 json=request_body,
@@ -316,7 +369,10 @@ class GooglePlacesGateway(PlaceProvider):
             raise PlaceProviderError("Google Places search failed") from error
 
         return [
-            self._to_place(place)
+            self._to_place(
+                place,
+                availability_window=availability_window,
+            )
             for place in google_response.places
             if not place.types or selected_google_types.intersection(place.types)
         ]
@@ -372,8 +428,13 @@ class GooglePlacesGateway(PlaceProvider):
             website_uri=google_details.website_uri,
         )
 
-    @staticmethod
-    def _to_place(place: GooglePlaceRecord) -> Place:
+    @classmethod
+    def _to_place(
+        cls,
+        place: GooglePlaceRecord,
+        *,
+        availability_window: AvailabilityWindow | None = None,
+    ) -> Place:
         return Place(
             provider="google",
             provider_place_id=place.id,
@@ -398,4 +459,136 @@ class GooglePlacesGateway(PlaceProvider):
             rating=place.rating,
             dine_in=place.dine_in,
             takeout=place.takeout,
+            opening_periods=cls._to_opening_periods(
+                place=place,
+                availability_window=availability_window,
+            ),
+        )
+
+    @classmethod
+    def _to_opening_periods(
+        cls,
+        *,
+        place: GooglePlaceRecord,
+        availability_window: AvailabilityWindow | None,
+    ) -> tuple[OpeningPeriod, ...] | None:
+        if availability_window is None:
+            return None
+        if place.current_opening_hours is None or place.time_zone is None:
+            return None
+        try:
+            time_zone = ZoneInfo(place.time_zone.id)
+        except (ValueError, ZoneInfoNotFoundError):
+            return None
+
+        periods: list[OpeningPeriod] = []
+        for google_period in place.current_opening_hours.periods:
+            periods.extend(
+                cls._to_opening_period_occurrences(
+                    google_period=google_period,
+                    time_zone=time_zone,
+                    availability_window=availability_window,
+                )
+            )
+        return tuple(periods)
+
+    @classmethod
+    def _to_opening_period_occurrences(
+        cls,
+        *,
+        google_period: GoogleOpeningPeriod,
+        time_zone: ZoneInfo,
+        availability_window: AvailabilityWindow,
+    ) -> list[OpeningPeriod]:
+        dated_start = cls._dated_opening_point(
+            point=google_period.opens_at,
+            time_zone=time_zone,
+        )
+        dated_end = (
+            cls._dated_opening_point(
+                point=google_period.closes_at,
+                time_zone=time_zone,
+            )
+            if google_period.closes_at is not None
+            else None
+        )
+        if dated_start is not None:
+            if dated_end is not None and dated_end <= dated_start:
+                return []
+            return [
+                OpeningPeriod(
+                    starts_at=dated_start,
+                    ends_at=dated_end,
+                )
+            ]
+
+        if google_period.opens_at.day is None:
+            return []
+
+        local_reference = availability_window.starts_at.astimezone(time_zone)
+        sunday = local_reference.date() - timedelta(
+            days=(local_reference.weekday() + 1) % 7
+        )
+        occurrences: list[OpeningPeriod] = []
+        for week_offset in (-7, 0, 7):
+            starts_at = cls._weekly_opening_point(
+                point=google_period.opens_at,
+                sunday=sunday + timedelta(days=week_offset),
+                time_zone=time_zone,
+            )
+            if starts_at is None:
+                continue
+            ends_at = (
+                cls._weekly_opening_point(
+                    point=google_period.closes_at,
+                    sunday=sunday + timedelta(days=week_offset),
+                    time_zone=time_zone,
+                )
+                if google_period.closes_at is not None
+                else None
+            )
+            if ends_at is not None and ends_at <= starts_at:
+                ends_at += timedelta(days=7)
+            occurrences.append(
+                OpeningPeriod(starts_at=starts_at, ends_at=ends_at)
+            )
+        return occurrences
+
+    @staticmethod
+    def _dated_opening_point(
+        *,
+        point: GoogleOpeningPoint | None,
+        time_zone: ZoneInfo,
+    ) -> datetime | None:
+        if point is None or point.date is None:
+            return None
+        try:
+            return datetime(
+                point.date.year,
+                point.date.month,
+                point.date.day,
+                point.hour,
+                point.minute,
+                tzinfo=time_zone,
+            )
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _weekly_opening_point(
+        *,
+        point: GoogleOpeningPoint | None,
+        sunday: date,
+        time_zone: ZoneInfo,
+    ) -> datetime | None:
+        if point is None or point.day is None:
+            return None
+        point_date = sunday + timedelta(days=point.day)
+        return datetime(
+            point_date.year,
+            point_date.month,
+            point_date.day,
+            point.hour,
+            point.minute,
+            tzinfo=time_zone,
         )

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 
-	import { ApiError, searchPlaces } from '$lib/api';
+	import { ApiError, interpretSearch, searchPlaces } from '$lib/api';
+	import InterpretationSummary from '$lib/components/InterpretationSummary.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import MinimumRatingFilter from '$lib/components/MinimumRatingFilter.svelte';
 	import OpenNowFilter from '$lib/components/OpenNowFilter.svelte';
@@ -11,13 +12,16 @@
 	import SpecialtyFilters from '$lib/components/SpecialtyFilters.svelte';
 	import { formatRadius } from '$lib/search';
 	import type {
+		AvailabilityWindow,
 		CommonFood,
 		Cuisine,
 		MinimumRating,
 		Place,
+		PlaceSearchRequest,
 		PlaceType,
 		SearchCriteria,
 		SearchFilters,
+		SearchInterpretation,
 		SearchSort,
 		SelectedLocation
 	} from '$lib/types';
@@ -43,24 +47,45 @@
 	let places = $state<Place[]>([]);
 	let status = $state('Select Search when you are ready.');
 	let searching = $state(false);
+	let interpreting = $state(false);
+	let smartSearchQuery = $state('');
+	let interpretation = $state<SearchInterpretation | null>(null);
+	let interpretationEdited = $state(false);
 	let searchVersion = $state(0);
 	let controller: AbortController | null = null;
+	let interpretationController: AbortController | null = null;
+	const busy = $derived(searching || interpreting);
+	const standardRadii = [500, 1000, 2000, 5000];
 
-	onDestroy(() => controller?.abort());
+	onDestroy(() => {
+		controller?.abort();
+		interpretationController?.abort();
+	});
 
 	function clearResults() {
 		places = [];
 	}
 
+	function markInterpretationEdited() {
+		if (interpretation) interpretationEdited = true;
+	}
+
+	function handleLocationChange(location: SelectedLocation | null) {
+		selectedLocation = location;
+		markInterpretationEdited();
+	}
+
 	function handleRadiusChange(event: Event) {
 		radiusMeters = Number((event.currentTarget as HTMLSelectElement).value);
 		clearResults();
+		markInterpretationEdited();
 		status = 'Radius updated. Select Search to refresh the results.';
 	}
 
 	function handlePlaceTypesChange(placeTypes: PlaceType[]) {
 		filters = { ...filters, place_types: placeTypes };
 		clearResults();
+		markInterpretationEdited();
 		status =
 			placeTypes.length > 0
 				? 'Place types updated. Select Search to refresh the results.'
@@ -70,56 +95,63 @@
 	function handleCuisinesChange(cuisines: Cuisine[]) {
 		filters = { ...filters, cuisines };
 		clearResults();
+		markInterpretationEdited();
 		status = 'Cuisine updated. Select Search to refresh the results.';
 	}
 
 	function handleCommonFoodsChange(commonFoods: CommonFood[]) {
 		filters = { ...filters, common_foods: commonFoods };
 		clearResults();
+		markInterpretationEdited();
 		status = 'Common food updated. Select Search to refresh the results.';
 	}
 
 	function handleOpenNowChange(openNow: boolean) {
 		filters = { ...filters, open_now: openNow };
 		clearResults();
+		markInterpretationEdited();
 		status = 'Availability updated. Select Search to refresh the results.';
 	}
 
 	function handleMinimumRatingChange(minimumRating: MinimumRating | null) {
 		filters = { ...filters, minimum_rating: minimumRating };
 		clearResults();
+		markInterpretationEdited();
 		status = 'Minimum rating updated. Select Search to refresh the results.';
 	}
 
 	function handleDineInChange(dineIn: boolean) {
 		filters = { ...filters, dine_in: dineIn };
 		clearResults();
+		markInterpretationEdited();
 		status = 'Service options updated. Select Search to refresh the results.';
 	}
 
 	function handleTakeoutChange(takeout: boolean) {
 		filters = { ...filters, takeout };
 		clearResults();
+		markInterpretationEdited();
 		status = 'Service options updated. Select Search to refresh the results.';
 	}
 
 	function handleSortChange(event: Event) {
 		sort = (event.currentTarget as HTMLSelectElement).value as SearchSort;
 		clearResults();
+		markInterpretationEdited();
 		status = 'Sort order updated. Select Search to refresh the results.';
 	}
 
-	async function search() {
+	function snapshotCriteria(): SearchCriteria | null {
 		if (!selectedLocation) {
 			status = 'Choose a suggested location or enter valid coordinates first.';
-			return;
+			return null;
 		}
 		if (filters.place_types.length === 0) {
 			status = 'Choose at least one place type.';
-			return;
+			return null;
 		}
 
-		const criteria: SearchCriteria = {
+		return {
 			location: { ...selectedLocation },
 			radius_meters: radiusMeters,
 			filters: {
@@ -133,24 +165,130 @@
 			},
 			sort
 		};
+	}
+
+	function applyInterpretation(result: SearchInterpretation) {
+		radiusMeters = result.search_criteria.radius_meters;
+		filters = {
+			place_types: [...result.search_criteria.filters.place_types],
+			cuisines: [...result.search_criteria.filters.cuisines],
+			common_foods: [...result.search_criteria.filters.common_foods],
+			open_now: result.search_criteria.filters.open_now,
+			minimum_rating: result.search_criteria.filters.minimum_rating,
+			dine_in: result.search_criteria.filters.dine_in,
+			takeout: result.search_criteria.filters.takeout
+		};
+		sort = result.search_criteria.sort;
+		interpretation = {
+			...result,
+			search_criteria: {
+				...result.search_criteria,
+				location: { ...result.search_criteria.location },
+				filters: { ...result.search_criteria.filters }
+			},
+			descriptive_requirements: [...result.descriptive_requirements],
+			availability_window: result.availability_window
+				? { ...result.availability_window }
+				: null,
+			assumptions: [...result.assumptions],
+			unsupported_criteria: [...result.unsupported_criteria]
+		};
+		interpretationEdited = false;
+	}
+
+	function handleAvailabilityChange(availabilityWindow: AvailabilityWindow | null) {
+		if (!interpretation) return;
+		interpretation = {
+			...interpretation,
+			availability_window: availabilityWindow
+				? { ...availabilityWindow }
+				: null
+		};
+		interpretationEdited = true;
 		clearResults();
-		searchVersion += 1;
-		searching = true;
-		status = `Searching within ${formatRadius(criteria.radius_meters)} of ${criteria.location.label}…`;
-		controller = new AbortController();
+	}
+
+	async function applySmartSearch() {
+		const query = smartSearchQuery.trim();
+		if (!query) {
+			status = 'Describe what you want before applying a smart search.';
+			return;
+		}
+		const criteria = snapshotCriteria();
+		if (!criteria) return;
+
+		clearResults();
+		interpreting = true;
+		status = 'Interpreting your request…';
+		interpretationController = new AbortController();
+		const timezone =
+			Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 		try {
-			places = await searchPlaces(criteria, controller.signal);
+			const result = await interpretSearch(
+				query,
+				criteria,
+				timezone,
+				interpretationController.signal
+			);
+			applyInterpretation(result);
+			const unsupportedCount = result.unsupported_criteria.length;
 			status =
-				places.length > 0
-					? `Found ${places.length} ${places.length === 1 ? 'place' : 'places'}.`
-					: 'No matching places found in this area. Try a larger radius or another location.';
+				unsupportedCount > 0
+					? `Request applied with ${unsupportedCount} unsupported ${
+							unsupportedCount === 1 ? 'criterion' : 'criteria'
+						}. Review what could not be applied, then select Search to use the supported criteria.`
+					: 'Request applied to the controls. Review or edit them, then select Search.';
 		} catch (error) {
 			if (error instanceof DOMException && error.name === 'AbortError') return;
 			console.error(error instanceof ApiError ? error.message : error);
 			status =
 				error instanceof ApiError && error.status === 422
-					? 'Check the location and radius, then try again.'
-					: 'Search is temporarily unavailable. Please try again.';
+					? 'Check the request and selected location, then try again.'
+					: error instanceof ApiError && error.status === 503
+						? 'Smart search is not configured on this server.'
+						: 'Smart search could not apply that request safely. Your current criteria were not changed.';
+		} finally {
+			interpreting = false;
+			interpretationController = null;
+		}
+	}
+
+	async function search() {
+		const criteria = snapshotCriteria();
+		if (!criteria) return;
+		const searchRequest: PlaceSearchRequest = {
+			...criteria,
+			descriptive_requirements:
+				interpretation?.descriptive_requirements.map((requirement) => ({
+					...requirement
+				})) ?? [],
+			availability_window: interpretation?.availability_window
+				? { ...interpretation.availability_window }
+				: null
+		};
+
+		clearResults();
+		searchVersion += 1;
+		searching = true;
+		status =
+			`Searching within ${formatRadius(criteria.radius_meters)} ` +
+			`of ${criteria.location.label}…`;
+		controller = new AbortController();
+		try {
+			places = await searchPlaces(searchRequest, controller.signal);
+			status =
+				places.length > 0
+					? `Found ${places.length} ${places.length === 1 ? 'place' : 'places'}.`
+					: 'No places matched the current criteria. Try removing a filter, choosing a larger radius, or selecting another location.';
+		} catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError') return;
+			console.error(error instanceof ApiError ? error.message : error);
+			status =
+				error instanceof ApiError && error.status === 400
+					? 'Google can confirm requested opening hours only for today and the next six days. Edit or remove the time preference.'
+					: error instanceof ApiError && error.status === 422
+						? 'Check the location, radius, filters, and requested time, then try again.'
+						: 'Search is temporarily unavailable. Select Search to try again.';
 		} finally {
 			searching = false;
 			controller = null;
@@ -168,7 +306,7 @@
 
 <main>
 	<header class="hero">
-		<p class="eyebrow">Phase 3</p>
+		<p class="eyebrow">Phase 4</p>
 		<h1>FoodFind</h1>
 		<p class="intro">Nearby food discovery starts here.</p>
 	</header>
@@ -182,11 +320,35 @@
 			</p>
 		</div>
 		<div class="search-controls">
+			<div class="smart-search-control">
+				<label for="smart-search-input">Smart search</label>
+				<textarea
+					id="smart-search-input"
+					name="smart-search"
+					rows="3"
+					placeholder="Try: good rated Persian restaurant serving kebab near me tonight"
+					bind:value={smartSearchQuery}
+					disabled={busy}
+				></textarea>
+				<div class="smart-search-footer">
+					<p>Applying a request updates the controls but does not search for places.</p>
+					<button
+						type="button"
+						disabled={busy ||
+							!selectedLocation ||
+							filters.place_types.length === 0 ||
+							!smartSearchQuery.trim()}
+						onclick={applySmartSearch}
+					>
+						{interpreting ? 'Applying…' : 'Apply request'}
+					</button>
+				</div>
+			</div>
 			<div class="search-action">
 				<LocationPicker
-					disabled={searching}
+					disabled={busy}
 					{initialLocation}
-					onLocationChange={(location) => (selectedLocation = location)}
+					onLocationChange={handleLocationChange}
 					onStatus={(message) => (status = message)}
 					onClearResults={clearResults}
 				/>
@@ -195,14 +357,17 @@
 					<select
 						id="radius-select"
 						name="radius"
-						value={radiusMeters}
-						disabled={searching}
+						bind:value={radiusMeters}
+						disabled={busy}
 						onchange={handleRadiusChange}
 					>
-						<option value="500">500 m</option>
-						<option value="1000">1 km</option>
-						<option value="2000">2 km</option>
-						<option value="5000">5 km</option>
+						{#if !standardRadii.includes(radiusMeters)}
+							<option value={radiusMeters}>{formatRadius(radiusMeters)}</option>
+						{/if}
+						<option value={500}>500 m</option>
+						<option value={1000}>1 km</option>
+						<option value={2000}>2 km</option>
+						<option value={5000}>5 km</option>
 					</select>
 				</div>
 				<div class="sort-control">
@@ -210,8 +375,8 @@
 					<select
 						id="sort-select"
 						name="sort"
-						value={sort}
-						disabled={searching}
+						bind:value={sort}
+						disabled={busy}
 						onchange={handleSortChange}
 					>
 						<option value="provider_default">Recommended</option>
@@ -221,7 +386,7 @@
 				</div>
 				<button
 					type="button"
-					disabled={searching || !selectedLocation || filters.place_types.length === 0}
+					disabled={busy || !selectedLocation || filters.place_types.length === 0}
 					onclick={search}
 				>
 					{searching ? 'Searching…' : 'Search'}
@@ -229,35 +394,45 @@
 			</div>
 			<PlaceTypeFilter
 				selected={filters.place_types}
-				disabled={searching}
+				disabled={busy}
 				onChange={handlePlaceTypesChange}
 			/>
 			<SpecialtyFilters
 				cuisines={filters.cuisines}
 				commonFoods={filters.common_foods}
-				disabled={searching}
+				disabled={busy}
 				onCuisinesChange={handleCuisinesChange}
 				onCommonFoodsChange={handleCommonFoodsChange}
 			/>
 			<OpenNowFilter
 				checked={filters.open_now}
-				disabled={searching}
+				disabled={busy}
 				onChange={handleOpenNowChange}
 			/>
 			<MinimumRatingFilter
 				minimumRating={filters.minimum_rating}
-				disabled={searching}
+				disabled={busy}
 				onChange={handleMinimumRatingChange}
 			/>
 			<ServiceFilters
 				dineIn={filters.dine_in}
 				takeout={filters.takeout}
-				disabled={searching}
+				disabled={busy}
 				onDineInChange={handleDineInChange}
 				onTakeoutChange={handleTakeoutChange}
 			/>
 		</div>
 	</section>
+
+	{#if interpretation}
+		<InterpretationSummary
+			{interpretation}
+			disabled={busy}
+			edited={interpretationEdited}
+			onAvailabilityChange={handleAvailabilityChange}
+			onStatus={(message) => (status = message)}
+		/>
+	{/if}
 
 	<p class="search-status" role="status" aria-live="polite">{status}</p>
 

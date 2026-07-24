@@ -2,7 +2,9 @@ import type {
 	LocationSuggestion,
 	Place,
 	PlaceDetails,
+	PlaceSearchRequest,
 	SearchCriteria,
+	SearchInterpretation,
 	SelectedLocation
 } from './types';
 
@@ -24,8 +26,21 @@ async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): P
 	return (await response.json()) as T;
 }
 
-export function searchPlaces(criteria: SearchCriteria, signal?: AbortSignal): Promise<Place[]> {
-	return postJson<Place[]>('/api/places/search', criteria, signal);
+export function searchPlaces(request: PlaceSearchRequest, signal?: AbortSignal): Promise<Place[]> {
+	return postJson<Place[]>('/api/places/search', request, signal);
+}
+
+export function interpretSearch(
+	query: string,
+	searchCriteria: SearchCriteria,
+	timezone: string,
+	signal?: AbortSignal
+): Promise<SearchInterpretation> {
+	return postJson<SearchInterpretation>(
+		'/api/search/interpret',
+		{ query, search_criteria: searchCriteria, timezone },
+		signal
+	);
 }
 
 export function autocompleteLocations(

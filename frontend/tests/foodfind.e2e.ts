@@ -22,7 +22,13 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 					business_status: 'operational',
 					open_now: null,
 					rating: 4.7,
-					distance_meters: 80
+					distance_meters: 80,
+					match_reasons: [
+						{
+							kind: 'confirmed',
+							text: 'Inside your selected 1 km radius.'
+						}
+					]
 				}
 			])
 		});
@@ -65,6 +71,10 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 		sort: 'provider_default'
 	});
 	expect(detailRequests).toBe(0);
+	await page.getByText('Why this matched').click();
+	await expect(page.getByText('Inside your selected 1 km radius.')).toBeVisible();
+	expect(searchRequests).toBe(1);
+	expect(detailRequests).toBe(0);
 
 	await page.getByRole('button', { name: 'View details' }).click();
 	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
@@ -102,4 +112,143 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	await page.getByRole('button', { name: 'View details' }).click();
 	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
 	expect(detailRequests).toBe(2);
+});
+
+test('applies smart-search criteria once and keeps review edits local', async ({ page }) => {
+	let interpretationRequests = 0;
+	let searchRequests = 0;
+	const searchBodies: unknown[] = [];
+
+	await page.route('**/api/search/interpret', async (route) => {
+		interpretationRequests += 1;
+		const body = route.request().postDataJSON();
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({
+				search_criteria: {
+					...body.search_criteria,
+					radius_meters: 2000,
+					filters: {
+						place_types: ['restaurant'],
+						cuisines: ['persian'],
+						common_foods: ['kebab'],
+						open_now: false,
+						minimum_rating: 4,
+						dine_in: true,
+						takeout: false
+					},
+					sort: 'rating'
+				},
+				descriptive_requirements: [{ text: 'serves kebab', kind: 'dish' }],
+				availability_window: {
+					starts_at: '2026-07-23T18:00:00-04:00',
+					ends_at: '2026-07-24T00:00:00-04:00'
+				},
+				assumptions: [
+					{
+						source_text: 'near me',
+						interpretation: `Using the selected location: ${body.search_criteria.location.label}`
+					}
+				],
+				unsupported_criteria: [],
+				timezone: body.timezone
+			})
+		});
+	});
+	await page.route('**/api/places/search', async (route) => {
+		searchRequests += 1;
+		searchBodies.push(route.request().postDataJSON());
+		await route.fulfill({ contentType: 'application/json', body: '[]' });
+	});
+
+	await page.goto('/');
+	expect(interpretationRequests).toBe(0);
+	expect(searchRequests).toBe(0);
+
+	await page
+		.getByRole('textbox', { name: 'Smart search' })
+		.fill('good rated Persian restaurant serving kebab near me tonight');
+	expect(interpretationRequests).toBe(0);
+	await page.getByRole('button', { name: 'Apply request' }).click();
+
+	await expect(page.getByText('Review what FoodFind understood')).toBeVisible();
+	await expect(page.getByRole('checkbox', { name: 'Persian' })).toBeChecked();
+	await expect(page.getByRole('checkbox', { name: 'Kebab' })).toBeChecked();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(0);
+
+	await page.getByRole('checkbox', { name: 'Bakery' }).click();
+	await page.getByLabel('Available from').fill('2026-07-23T19:00');
+	await expect(page.getByText('You edited the interpreted criteria.')).toBeVisible();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(0);
+
+	await page.getByRole('button', { name: 'Search' }).click();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(1);
+	expect(searchBodies[0]).toMatchObject({
+		filters: {
+			place_types: ['restaurant', 'bakery'],
+			cuisines: ['persian'],
+			common_foods: ['kebab'],
+			open_now: false,
+			minimum_rating: 4,
+			dine_in: true,
+			takeout: false
+		},
+		descriptive_requirements: [{ text: 'serves kebab', kind: 'dish' }],
+		availability_window: {
+			starts_at: expect.stringContaining('2026-07-23T19:00:00'),
+			ends_at: '2026-07-24T00:00:00-04:00'
+		}
+	});
+
+	await page.reload();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(1);
+});
+
+test('does not retry failed interpretation or empty place search automatically', async ({ page }) => {
+	let interpretationRequests = 0;
+	let searchRequests = 0;
+
+	await page.route('**/api/search/interpret', async (route) => {
+		interpretationRequests += 1;
+		await route.fulfill({
+			status: 502,
+			contentType: 'application/json',
+			body: JSON.stringify({ detail: 'Smart search is temporarily unavailable' })
+		});
+	});
+	await page.route('**/api/places/search', async (route) => {
+		searchRequests += 1;
+		await route.fulfill({ contentType: 'application/json', body: '[]' });
+	});
+
+	await page.goto('/');
+	await page
+		.getByRole('textbox', { name: 'Smart search' })
+		.fill('a request the interpreter cannot safely apply');
+	await page.getByRole('button', { name: 'Apply request' }).click();
+
+	await expect(
+		page.getByText(
+			'Smart search could not apply that request safely. Your current criteria were not changed.'
+		)
+	).toBeVisible();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(0);
+
+	await page.getByRole('button', { name: 'Search' }).click();
+	await expect(
+		page.getByText(
+			'No places matched the current criteria. Try removing a filter, choosing a larger radius, or selecting another location.'
+		)
+	).toBeVisible();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(1);
+
+	await page.reload();
+	expect(interpretationRequests).toBe(1);
+	expect(searchRequests).toBe(1);
 });

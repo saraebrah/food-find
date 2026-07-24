@@ -69,6 +69,25 @@
 	{/if}
 	<p class="place-source">Source: {providerName(place.provider)}</p>
 
+	{#if place.match_reasons.length > 0}
+		<details class="place-match-reasons">
+			<summary>Why this matched</summary>
+			<ul>
+				{#each place.match_reasons as reason}
+					<li>
+						<span
+							class:match-confirmed={reason.kind === 'confirmed'}
+							class:match-relevance={reason.kind === 'relevance'}
+						>
+							{reason.kind === 'confirmed' ? 'Confirmed' : 'Relevance only'}
+						</span>
+						<span>{reason.text}</span>
+					</li>
+				{/each}
+			</ul>
+		</details>
+	{/if}
+
 	{#if directions}
 		<a
 			class="place-action place-directions-link"

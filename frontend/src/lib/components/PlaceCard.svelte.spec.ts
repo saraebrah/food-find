@@ -24,7 +24,14 @@ const place: Place = {
 	rating: 4.6,
 	dine_in: null,
 	takeout: null,
-	distance_meters: 421
+	distance_meters: 421,
+	match_reasons: [
+		{ kind: 'confirmed', text: 'Inside your selected 1 km radius.' },
+		{
+			kind: 'relevance',
+			text: 'Kebab availability is not verified—check the menu or call.'
+		}
+	]
 };
 
 describe('PlaceCard', () => {
@@ -49,6 +56,50 @@ describe('PlaceCard', () => {
 		await expect.element(page.getByText('Open now')).toBeVisible();
 		await expect.element(page.getByText('Google Maps rating: 4.6/5')).toBeVisible();
 		await expect.element(page.getByRole('link', { name: 'Get directions' })).toBeVisible();
+		expect(getPlaceDetails).not.toHaveBeenCalled();
+	});
+
+	it('reveals deterministic match reasons without fetching details', async () => {
+		render(PlaceCard, { place });
+
+		await page.getByText('Why this matched').click();
+		await expect
+			.element(page.getByText('Inside your selected 1 km radius.'))
+			.toBeVisible();
+		await expect
+			.element(
+				page.getByText(
+					'Kebab availability is not verified—check the menu or call.'
+				)
+			)
+			.toBeVisible();
+		await expect.element(page.getByText('Confirmed')).toBeVisible();
+		await expect.element(page.getByText('Relevance only')).toBeVisible();
+		expect(getPlaceDetails).not.toHaveBeenCalled();
+	});
+
+	it('labels missing optional place data without guessing', async () => {
+		render(PlaceCard, {
+			place: {
+				...place,
+				category: null,
+				category_code: null,
+				address: null,
+				business_status: null,
+				open_now: null,
+				rating: null
+			}
+		});
+
+		await expect.element(page.getByText('Category unavailable')).toBeVisible();
+		await expect.element(page.getByText('Address unavailable')).toBeVisible();
+		await expect
+			.element(
+				page.getByText(
+					'Operational status unconfirmed. Call to confirm before visiting.'
+				)
+			)
+			.toBeVisible();
 		expect(getPlaceDetails).not.toHaveBeenCalled();
 	});
 

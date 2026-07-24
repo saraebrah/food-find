@@ -3,6 +3,10 @@ from typing import Protocol
 
 from app.domain.place import Place, PlaceDetails
 from app.domain.search import SearchFilters, SearchSort
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+)
 
 
 class PlaceProviderError(RuntimeError):
@@ -21,6 +25,8 @@ class PlaceProvider(Protocol):
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]: ...
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails: ...

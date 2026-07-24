@@ -40,6 +40,49 @@ export interface SearchCriteria {
 	sort: SearchSort;
 }
 
+export type DescriptiveRequirementKind = 'dish' | 'dietary' | 'atmosphere' | 'other';
+
+export interface DescriptiveRequirement {
+	text: string;
+	kind: DescriptiveRequirementKind;
+}
+
+export interface AvailabilityWindow {
+	starts_at: string;
+	ends_at: string;
+}
+
+export interface PlaceSearchRequest extends SearchCriteria {
+	descriptive_requirements: DescriptiveRequirement[];
+	availability_window: AvailabilityWindow | null;
+}
+
+export interface ResolvedAssumption {
+	source_text: string;
+	interpretation: string;
+}
+
+export interface UnsupportedCriterion {
+	text: string;
+	reason: string;
+}
+
+export interface SearchInterpretation {
+	search_criteria: SearchCriteria;
+	descriptive_requirements: DescriptiveRequirement[];
+	availability_window: AvailabilityWindow | null;
+	assumptions: ResolvedAssumption[];
+	unsupported_criteria: UnsupportedCriterion[];
+	timezone: string;
+}
+
+export type MatchReasonKind = 'confirmed' | 'relevance';
+
+export interface MatchReason {
+	kind: MatchReasonKind;
+	text: string;
+}
+
 export interface Place {
 	provider: string;
 	provider_place_id: string;
@@ -54,6 +97,7 @@ export interface Place {
 	dine_in: boolean | null;
 	takeout: boolean | null;
 	distance_meters: number | null;
+	match_reasons: MatchReason[];
 }
 
 export interface PlaceDetails {

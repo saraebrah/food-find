@@ -79,7 +79,7 @@ Manual controls establish the search model that smart search will later use. A f
 ## Phase 4 — Smart search
 
 - **Priority:** P0
-- **Status:** In progress
+- **Status:** Complete
 
 1. [x] Migrate all food-business discovery from Nearby Search to Text Search while leaving location autocomplete and on-demand Place Details unchanged.
    - Build one deterministic `textQuery` from the selected place types, cuisines, and common foods.
@@ -92,13 +92,26 @@ Manual controls establish the search model that smart search will later use. A f
    - Keep structured filters, descriptive requirements, assumptions, and unsupported criteria separate.
    - Use the agreed rating and time-language defaults in `docs/decisions.md`.
    - Preserve useful descriptive terms for Text Search, but do not present text relevance as a verified fact.
-3. Add a server-side LLM interpreter behind a replaceable port. Validate its structured output with Pydantic, keep its API key server-side, and mock all LLM responses in automated tests.
-4. Give the interpreter the selected location, current date and timezone, and FoodFind's supported capabilities. Until Phase 5 adds device location, interpret **near me** as the visible selected location and state that assumption.
-5. Add time-aware availability so phrases such as **open tonight** become a visible, editable time window rather than being approximated as **Open now**.
-6. Populate the existing manual controls from the interpretation, show the LLM's assumptions, and let the user edit criteria without another LLM call.
-7. Run a search only from an explicit submission. Typing, rendering, reloading, and editing interpreted controls make no LLM or Google request; one submitted smart search makes at most one LLM interpretation request and one Google search request.
-8. Explain why each result matched using the validated interpretation and confirmed provider data rather than making an LLM call for every result.
-9. Handle invalid LLM output, interpreter failure, unsupported provider capabilities, missing place data, and no-result searches without inventing criteria or retry loops.
+3. [x] Add a server-side LLM interpreter behind a replaceable port. Validate its structured output with Pydantic, keep its API key server-side, and mock all LLM responses in automated tests.
+4. [x] Give the interpreter the selected location, current date and timezone, and FoodFind's supported capabilities. Until Phase 5 adds device location, interpret **near me** as the visible selected location and state that assumption.
+5. [x] Add time-aware availability so phrases such as **open tonight** become a visible, editable time window rather than being approximated as **Open now**.
+6. [x] Populate the existing manual controls from the interpretation, show the LLM's assumptions, and let the user edit criteria without another LLM call.
+7. [x] Run a search only from an explicit submission. Typing, rendering, reloading, and editing interpreted controls make no LLM or Google request; one submitted smart search makes at most one LLM interpretation request and one Google search request.
+   - Carry the reviewed structured filters, descriptive requirements, and availability window into the submitted place-search snapshot.
+   - Add descriptive requirements to the deterministic Text Search query as relevance signals, not verified facts.
+   - When a time window is active, request current opening periods and the place timezone in the same Text Search request. Keep a result only when Google-provided hours overlap a requested range or contain an exact requested time; missing hours do not count as confirmation.
+   - Do not expose raw opening periods in the browser response or create per-result detail requests.
+8. [x] Explain why each result matched using the validated interpretation and confirmed provider data rather than making an LLM call for every result.
+   - Build deterministic `confirmed` and `relevance` reasons after application filtering, using the submitted criteria and data already returned for that place.
+   - Confirm only facts FoodFind can support, such as radius, provider category, an active rating or service filter, and requested-time overlap.
+   - Label cuisine, dish, dietary, atmosphere, and other text matches as relevance-only. Collapse duplicate structured and descriptive dish messages.
+   - Include reasons in the existing search response and show them in a local **Why this matched** disclosure. Opening it makes no LLM, Text Search, or Place Details request.
+9. [x] Handle invalid LLM output, interpreter failure, unsupported provider capabilities, missing place data, and no-result searches without inventing criteria or retry loops.
+   - Revalidate interpreted criteria against FoodFind's capability snapshot. Treat malformed output, disabled capabilities, and interpreter failures as safe errors that leave the current criteria unchanged.
+   - Limit requested-time confirmation to Google's current seven-day hours horizon. Reject an out-of-range interpreted or edited window before searching Google.
+   - Keep unsupported criteria visible for review but out of the place-search request. Search may continue explicitly with only the supported criteria.
+   - Do not infer missing place data. Show unavailable values or an operational-status warning, and exclude missing values when an active filter requires provider confirmation.
+   - Give no-result and failure states distinct recovery guidance. Never retry interpretation or place search automatically.
 
 The LLM resolves language into a validated FoodFind intent; it does not call Google, construct field masks, or bypass application rules. Manual and natural-language input with the same normalized intent must produce the same Text Search semantics.
 
@@ -177,9 +190,8 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 ## Current next task
 
-Start Phase 4 Step 3 by adding a server-side LLM interpreter behind a replaceable port, validating its output with Pydantic, and using mocked LLM responses in automated tests.
+Phase 4 is complete. Review smart search end to end, then start Phase 5 Step 1 by displaying the current results on a map.
 
 ## Open decisions
 
 - Map provider
-- LLM provider and model for development and later hosted use

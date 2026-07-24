@@ -41,6 +41,23 @@ python -m app.scripts.google_places_smoke
 
 Do not add this command to automated tests.
 
+## Gemini setup
+
+Gemini is the first smart-search interpreter adapter. Create a separate Gemini API key in Google AI Studio and add it to `.env`:
+
+```text
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-3.6-flash
+```
+
+`GEMINI_MODEL` is optional; `gemini-3.6-flash` is the default. Keep the key server-side and do not reuse it in frontend code, logs, or test fixtures.
+
+The browser calls Gemini only when the user explicitly selects **Apply request**. Loading, reloading, typing, rendering, and editing interpreted criteria make no Gemini request, and applying an interpretation does not automatically call Google Places. Selecting **Search** sends the reviewed criteria in one Google Text Search request without calling Gemini again. A future-time preference conditionally requests current opening hours, which makes that search Enterprise. Automated tests use fake responses.
+
+Gemini receives the submitted search state, selected-location label and coordinates, local date and time, timezone, and supported-capability list. Google states that free-tier content may be used to improve its products, so do not submit secrets or unnecessary sensitive information.
+
+Requested-time searches can confirm only today and the next six days because Google supplies current opening hours for that seven-day range. FoodFind rejects later windows before calling Google. Failed or empty requests are never retried automatically; select **Apply request** or **Search** again to retry explicitly.
+
 ## Run
 
 Run the backend and frontend in separate terminals:
