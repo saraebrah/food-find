@@ -124,18 +124,25 @@ def test_search_intent_text_values_must_not_be_blank(
             datetime(2026, 7, 23, 0),
         ),
         (
-            datetime(2026, 7, 22, 18, tzinfo=TORONTO),
-            datetime(2026, 7, 22, 18, tzinfo=TORONTO),
-        ),
-        (
             datetime(2026, 7, 22, 19, tzinfo=TORONTO),
             datetime(2026, 7, 22, 18, tzinfo=TORONTO),
         ),
     ),
 )
-def test_availability_window_requires_aware_increasing_datetimes(
+def test_availability_window_requires_aware_non_decreasing_datetimes(
     starts_at: datetime,
     ends_at: datetime,
 ) -> None:
     with pytest.raises(ValueError):
         AvailabilityWindow(starts_at=starts_at, ends_at=ends_at)
+
+
+def test_availability_window_allows_an_exact_time() -> None:
+    exact_time = datetime(2026, 7, 22, 19, tzinfo=TORONTO)
+
+    window = AvailabilityWindow(
+        starts_at=exact_time,
+        ends_at=exact_time,
+    )
+
+    assert window.starts_at == window.ends_at == exact_time

@@ -10,6 +10,10 @@ from app.application.search_fixed_toronto import (
 )
 from app.domain.place import Place
 from app.domain.search import SearchFilters, SearchSort
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+)
 
 
 class RecordingPlaceProvider:
@@ -24,6 +28,8 @@ class RecordingPlaceProvider:
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]:
         self.searches.append(
             {

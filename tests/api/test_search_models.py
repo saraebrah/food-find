@@ -1,4 +1,5 @@
 import math
+from datetime import datetime
 
 import pytest
 from pydantic import ValidationError
@@ -12,6 +13,11 @@ from app.domain.search import (
     SearchCriteria,
     SearchFilters,
     SearchSort,
+)
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+    DescriptiveRequirementKind,
 )
 
 
@@ -80,6 +86,63 @@ def test_search_request_creates_the_normalized_default_search_state() -> None:
         filters=SearchFilters(),
         sort=SearchSort.PROVIDER_DEFAULT,
     )
+
+
+def test_search_request_normalizes_reviewed_text_and_availability() -> None:
+    request = SearchPlacesRequest(
+        location=SelectedLocationRequest(
+            label="Toronto City Hall",
+            latitude=43.6532,
+            longitude=-79.3832,
+        ),
+        radius_meters=1_000,
+        descriptive_requirements=[
+            {"text": " quiet atmosphere ", "kind": "atmosphere"}
+        ],
+        availability_window={
+            "starts_at": "2026-07-23T18:00:00-04:00",
+            "ends_at": "2026-07-24T00:00:00-04:00",
+        },
+    )
+
+    assert request.descriptive_requirements_to_domain() == (
+        DescriptiveRequirement(
+            text="quiet atmosphere",
+            kind=DescriptiveRequirementKind.ATMOSPHERE,
+        ),
+    )
+    assert request.availability_window_to_domain() == AvailabilityWindow(
+        starts_at=datetime.fromisoformat("2026-07-23T18:00:00-04:00"),
+        ends_at=datetime.fromisoformat("2026-07-24T00:00:00-04:00"),
+    )
+
+
+@pytest.mark.parametrize(
+    "availability_window",
+    (
+        {
+            "starts_at": "2026-07-23T18:00:00",
+            "ends_at": "2026-07-24T00:00:00",
+        },
+        {
+            "starts_at": "2026-07-24T00:00:00-04:00",
+            "ends_at": "2026-07-23T18:00:00-04:00",
+        },
+    ),
+)
+def test_search_request_rejects_invalid_availability(
+    availability_window: dict[str, str],
+) -> None:
+    with pytest.raises(ValidationError):
+        SearchPlacesRequest(
+            location=SelectedLocationRequest(
+                label="Toronto City Hall",
+                latitude=43.6532,
+                longitude=-79.3832,
+            ),
+            radius_meters=1_000,
+            availability_window=availability_window,
+        )
 
 
 def test_search_request_normalizes_service_filters() -> None:

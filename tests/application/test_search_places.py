@@ -1,10 +1,20 @@
 from collections.abc import Sequence
+from datetime import datetime
 
 import pytest
 
-from app.application.search_places import SearchPlaces
+from app.application.search_places import (
+    SearchPlaces,
+    UnsupportedAvailabilityWindowError,
+)
 from app.domain.location import SelectedLocation
-from app.domain.place import Coordinates, Place
+from app.domain.place import (
+    Coordinates,
+    MatchReason,
+    MatchReasonKind,
+    OpeningPeriod,
+    Place,
+)
 from app.domain.search import (
     Cuisine,
     MinimumRating,
@@ -12,6 +22,11 @@ from app.domain.search import (
     SearchCriteria,
     SearchFilters,
     SearchSort,
+)
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+    DescriptiveRequirementKind,
 )
 
 
@@ -27,6 +42,8 @@ class RecordingPlaceProvider:
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]:
         self.searches.append(
             {
@@ -105,6 +122,8 @@ class RatingPlaceProvider(RecordingPlaceProvider):
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]:
         self.searches.append({"filters": filters, "sort": sort})
         return [
@@ -153,6 +172,8 @@ class ServicePlaceProvider(RecordingPlaceProvider):
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]:
         self.searches.append({"filters": filters, "sort": sort})
         return [
@@ -227,6 +248,23 @@ async def test_search_uses_selected_location_and_adds_distance() -> None:
             business_status="operational",
             open_now=True,
             distance_meters=14,
+            match_reasons=(
+                MatchReason(
+                    kind=MatchReasonKind.CONFIRMED,
+                    text="Category: Restaurant.",
+                ),
+                MatchReason(
+                    kind=MatchReasonKind.CONFIRMED,
+                    text="Inside your selected 2 km radius.",
+                ),
+                MatchReason(
+                    kind=MatchReasonKind.RELEVANCE,
+                    text=(
+                        "Italian influenced Google text relevance; "
+                        "the cuisine is not independently verified."
+                    ),
+                ),
+            ),
         ),
         Place(
             provider="google",
@@ -239,6 +277,23 @@ async def test_search_uses_selected_location_and_adds_distance() -> None:
             business_status=None,
             open_now=None,
             distance_meters=14,
+            match_reasons=(
+                MatchReason(
+                    kind=MatchReasonKind.CONFIRMED,
+                    text="Category: Restaurant.",
+                ),
+                MatchReason(
+                    kind=MatchReasonKind.CONFIRMED,
+                    text="Inside your selected 2 km radius.",
+                ),
+                MatchReason(
+                    kind=MatchReasonKind.RELEVANCE,
+                    text=(
+                        "Italian influenced Google text relevance; "
+                        "the cuisine is not independently verified."
+                    ),
+                ),
+            ),
         ),
     ]
     assert provider.searches == [
@@ -350,3 +405,284 @@ async def test_service_filters_require_explicit_provider_confirmation(
     assert provider.searches == [
         {"filters": filters, "sort": SearchSort.PROVIDER_DEFAULT}
     ]
+
+
+class AvailabilityPlaceProvider(RecordingPlaceProvider):
+    async def search_nearby(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        radius_meters: float,
+        filters: SearchFilters,
+        sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
+    ) -> Sequence[Place]:
+        self.searches.append(
+            {
+                "descriptive_requirements": descriptive_requirements,
+                "availability_window": availability_window,
+            }
+        )
+        common = {
+            "provider": "google",
+            "category": "Restaurant",
+            "category_code": "restaurant",
+            "address": None,
+            "coordinates": Coordinates(latitude=43.6454, longitude=-79.3805),
+            "business_status": "operational",
+        }
+        return [
+            Place(
+                **common,
+                provider_place_id="overlaps",
+                name="Open During Part of Tonight",
+                opening_periods=(
+                    OpeningPeriod(
+                        starts_at=datetime.fromisoformat(
+                            "2026-07-23T17:00:00-04:00"
+                        ),
+                        ends_at=datetime.fromisoformat(
+                            "2026-07-23T23:00:00-04:00"
+                        ),
+                    ),
+                ),
+            ),
+            Place(
+                **common,
+                provider_place_id="before",
+                name="Closes Before Tonight",
+                opening_periods=(
+                    OpeningPeriod(
+                        starts_at=datetime.fromisoformat(
+                            "2026-07-23T09:00:00-04:00"
+                        ),
+                        ends_at=datetime.fromisoformat(
+                            "2026-07-23T17:00:00-04:00"
+                        ),
+                    ),
+                ),
+            ),
+            Place(
+                **common,
+                provider_place_id="missing",
+                name="Hours Missing",
+                opening_periods=None,
+            ),
+        ]
+
+
+class ConfirmedFilterPlaceProvider(RecordingPlaceProvider):
+    async def search_nearby(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+        radius_meters: float,
+        filters: SearchFilters,
+        sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
+    ) -> Sequence[Place]:
+        self.searches.append(
+            {
+                "filters": filters,
+                "descriptive_requirements": descriptive_requirements,
+            }
+        )
+        return [
+            Place(
+                provider="google",
+                provider_place_id="confirmed",
+                name="Confirmed Restaurant",
+                category="Restaurant",
+                category_code="restaurant",
+                address=None,
+                coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+                business_status="operational",
+                open_now=True,
+                rating=4.6,
+            )
+        ]
+
+
+@pytest.mark.anyio
+async def test_reviewed_requirements_reach_provider_and_availability_is_confirmed() -> None:
+    provider = AvailabilityPlaceProvider()
+    search = SearchPlaces(place_provider=provider)
+    requirement = DescriptiveRequirement(
+        text="quiet atmosphere",
+        kind=DescriptiveRequirementKind.ATMOSPHERE,
+    )
+    window = AvailabilityWindow(
+        starts_at=datetime.fromisoformat("2026-07-23T18:00:00-04:00"),
+        ends_at=datetime.fromisoformat("2026-07-24T00:00:00-04:00"),
+    )
+    criteria = SearchCriteria(
+        location=SelectedLocation(
+            label="Union Station coordinates",
+            coordinates=Coordinates(latitude=43.6453, longitude=-79.3806),
+        ),
+        radius_meters=2_000,
+    )
+
+    places = await search.execute(
+        criteria=criteria,
+        descriptive_requirements=(requirement,),
+        availability_window=window,
+        current_datetime=datetime.fromisoformat(
+            "2026-07-23T12:00:00-04:00"
+        ),
+    )
+
+    assert [place.provider_place_id for place in places] == ["overlaps"]
+    assert places[0].match_reasons == (
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Category: Restaurant.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Inside your selected 2 km radius.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Google hours overlap your requested time.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.RELEVANCE,
+            text=(
+                "“quiet atmosphere” influenced Google text relevance; "
+                "it is not independently verified."
+            ),
+        ),
+    )
+    assert provider.searches == [
+        {
+            "descriptive_requirements": (requirement,),
+            "availability_window": window,
+        }
+    ]
+
+
+@pytest.mark.anyio
+async def test_exact_availability_time_must_fall_inside_an_opening_period() -> None:
+    provider = AvailabilityPlaceProvider()
+    search = SearchPlaces(place_provider=provider)
+    exact_time = datetime.fromisoformat("2026-07-23T23:00:00-04:00")
+
+    places = await search.execute(
+        criteria=SearchCriteria(
+            location=SelectedLocation(
+                label="Union Station coordinates",
+                coordinates=Coordinates(latitude=43.6453, longitude=-79.3806),
+            ),
+            radius_meters=2_000,
+        ),
+        availability_window=AvailabilityWindow(
+            starts_at=exact_time,
+            ends_at=exact_time,
+        ),
+        current_datetime=datetime.fromisoformat(
+            "2026-07-23T12:00:00-04:00"
+        ),
+    )
+
+    assert places == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "window",
+    (
+        AvailabilityWindow(
+            starts_at=datetime.fromisoformat("2026-07-22T18:00:00-04:00"),
+            ends_at=datetime.fromisoformat("2026-07-22T22:00:00-04:00"),
+        ),
+        AvailabilityWindow(
+            starts_at=datetime.fromisoformat("2026-07-29T18:00:00-04:00"),
+            ends_at=datetime.fromisoformat("2026-07-30T00:00:00-04:00"),
+        ),
+    ),
+)
+async def test_unsupported_availability_does_not_call_provider(
+    window: AvailabilityWindow,
+) -> None:
+    provider = AvailabilityPlaceProvider()
+
+    with pytest.raises(
+        UnsupportedAvailabilityWindowError,
+        match="seven-day",
+    ):
+        await SearchPlaces(place_provider=provider).execute(
+            criteria=SearchCriteria(
+                location=SelectedLocation(
+                    label="Union Station coordinates",
+                    coordinates=Coordinates(
+                        latitude=43.6453,
+                        longitude=-79.3806,
+                    ),
+                ),
+                radius_meters=2_000,
+            ),
+            availability_window=window,
+            current_datetime=datetime.fromisoformat(
+                "2026-07-23T12:00:00-04:00"
+            ),
+        )
+
+    assert provider.searches == []
+
+
+@pytest.mark.anyio
+async def test_match_reasons_use_active_confirmed_filters_without_extra_calls() -> None:
+    provider = ConfirmedFilterPlaceProvider()
+    search = SearchPlaces(place_provider=provider)
+
+    places = await search.execute(
+        criteria=SearchCriteria(
+            location=SelectedLocation(
+                label="Union Station coordinates",
+                coordinates=Coordinates(latitude=43.6453, longitude=-79.3806),
+            ),
+            radius_meters=2_000,
+            filters=SearchFilters(
+                open_now=True,
+                minimum_rating=MinimumRating.FOUR,
+            ),
+        ),
+        descriptive_requirements=(
+            DescriptiveRequirement(
+                text="serves kebab",
+                kind=DescriptiveRequirementKind.DISH,
+            ),
+        ),
+    )
+
+    assert len(provider.searches) == 1
+    assert places[0].match_reasons == (
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Category: Restaurant.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Inside your selected 2 km radius.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Google reports this place open now.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.CONFIRMED,
+            text="Google rating 4.6 meets your 4.0 minimum.",
+        ),
+        MatchReason(
+            kind=MatchReasonKind.RELEVANCE,
+            text=(
+                "“serves kebab” influenced Google text relevance; "
+                "availability is not verified—check the menu or call."
+            ),
+        ),
+    )

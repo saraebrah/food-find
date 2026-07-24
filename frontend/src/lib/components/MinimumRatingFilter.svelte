@@ -8,6 +8,11 @@
 	}
 
 	let { minimumRating, disabled, onChange }: Props = $props();
+	let selectedValue = $state('');
+
+	$effect(() => {
+		selectedValue = minimumRating === null ? '' : String(minimumRating);
+	});
 
 	function handleChange(event: Event) {
 		const value = (event.currentTarget as HTMLSelectElement).value;
@@ -20,7 +25,7 @@
 	<select
 		id="minimum-rating-select"
 		name="minimum-rating"
-		value={minimumRating ?? ''}
+		bind:value={selectedValue}
 		{disabled}
 		onchange={handleChange}
 	>

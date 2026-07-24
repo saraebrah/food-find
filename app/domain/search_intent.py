@@ -89,8 +89,8 @@ class AvailabilityWindow:
     def __post_init__(self) -> None:
         if self.starts_at.utcoffset() is None or self.ends_at.utcoffset() is None:
             raise ValueError("Availability window datetimes must be timezone-aware")
-        if self.ends_at <= self.starts_at:
-            raise ValueError("Availability window must end after it starts")
+        if self.ends_at < self.starts_at:
+            raise ValueError("Availability window must not end before it starts")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

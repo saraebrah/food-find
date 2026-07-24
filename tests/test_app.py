@@ -1,9 +1,10 @@
 from collections.abc import Iterator, Sequence
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.domain.place import Coordinates, Place, PlaceDetails
+from app.domain.place import Coordinates, OpeningPeriod, Place, PlaceDetails
 from app.domain.search import (
     Cuisine,
     MinimumRating,
@@ -11,7 +12,11 @@ from app.domain.search import (
     SearchFilters,
     SearchSort,
 )
-from app.main import app, get_place_provider
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+)
+from app.main import app, get_current_datetime, get_place_provider
 from app.ports.place_provider import PlaceProviderError
 
 
@@ -32,6 +37,8 @@ class RecordingPlaceProvider:
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]:
         self.call_count += 1
         self.searches.append(
@@ -41,6 +48,8 @@ class RecordingPlaceProvider:
                 "radius_meters": radius_meters,
                 "filters": filters,
                 "sort": sort,
+                "descriptive_requirements": descriptive_requirements,
+                "availability_window": availability_window,
             }
         )
         return [
@@ -57,6 +66,16 @@ class RecordingPlaceProvider:
                 rating=4.6,
                 dine_in=True,
                 takeout=True,
+                opening_periods=(
+                    OpeningPeriod(
+                        starts_at=datetime.fromisoformat(
+                            "2026-07-23T17:00:00-04:00"
+                        ),
+                        ends_at=datetime.fromisoformat(
+                            "2026-07-23T23:00:00-04:00"
+                        ),
+                    ),
+                ),
             )
         ]
 
@@ -86,6 +105,8 @@ class FailingPlaceProvider:
         radius_meters: float,
         filters: SearchFilters,
         sort: SearchSort,
+        descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
+        availability_window: AvailabilityWindow | None = None,
     ) -> Sequence[Place]:
         raise PlaceProviderError("private provider details")
 
@@ -240,6 +261,8 @@ def test_explicit_search_calls_provider_once_and_returns_places(
                 takeout=True,
             ),
             "sort": SearchSort.RATING,
+            "descriptive_requirements": (),
+            "availability_window": None,
         }
     ]
     assert response.json() == [
@@ -257,8 +280,135 @@ def test_explicit_search_calls_provider_once_and_returns_places(
             "dine_in": True,
             "takeout": True,
             "distance_meters": 14,
+            "match_reasons": [
+                {"kind": "confirmed", "text": "Category: Restaurant."},
+                {
+                    "kind": "confirmed",
+                    "text": "Inside your selected 2 km radius.",
+                },
+                {
+                    "kind": "confirmed",
+                    "text": "Google reports this place open now.",
+                },
+                {
+                    "kind": "confirmed",
+                    "text": "Google rating 4.6 meets your 4.5 minimum.",
+                },
+                {
+                    "kind": "confirmed",
+                    "text": "Google reports dine-in is available.",
+                },
+                {
+                    "kind": "confirmed",
+                    "text": "Google reports takeout is available.",
+                },
+                {
+                    "kind": "relevance",
+                    "text": (
+                        "Italian influenced Google text relevance; "
+                        "the cuisine is not independently verified."
+                    ),
+                },
+            ],
         }
     ]
+
+
+def test_explicit_search_carries_reviewed_text_and_availability_once(
+    client: TestClient,
+) -> None:
+    provider = RecordingPlaceProvider()
+    app.dependency_overrides[get_place_provider] = lambda: provider
+    app.dependency_overrides[get_current_datetime] = lambda: (
+        datetime.fromisoformat("2026-07-23T12:00:00-04:00")
+    )
+
+    response = client.post(
+        "/api/places/search",
+        json={
+            "location": {
+                "label": "Union Station coordinates",
+                "latitude": 43.6453,
+                "longitude": -79.3806,
+            },
+            "radius_meters": 2_000,
+            "filters": {"place_types": ["restaurant"]},
+            "sort": "provider_default",
+            "descriptive_requirements": [
+                {"text": "quiet atmosphere", "kind": "atmosphere"}
+            ],
+            "availability_window": {
+                "starts_at": "2026-07-23T18:00:00-04:00",
+                "ends_at": "2026-07-24T00:00:00-04:00",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert provider.call_count == 1
+    assert provider.searches[0]["descriptive_requirements"] == (
+        DescriptiveRequirement(
+            text="quiet atmosphere",
+            kind="atmosphere",
+        ),
+    )
+    assert provider.searches[0]["availability_window"] == AvailabilityWindow(
+        starts_at=datetime.fromisoformat("2026-07-23T18:00:00-04:00"),
+        ends_at=datetime.fromisoformat("2026-07-24T00:00:00-04:00"),
+    )
+    assert response.json()[0]["match_reasons"] == [
+        {"kind": "confirmed", "text": "Category: Restaurant."},
+        {
+            "kind": "confirmed",
+            "text": "Inside your selected 2 km radius.",
+        },
+        {
+            "kind": "confirmed",
+            "text": "Google hours overlap your requested time.",
+        },
+        {
+            "kind": "relevance",
+            "text": (
+                "“quiet atmosphere” influenced Google text relevance; "
+                "it is not independently verified."
+            ),
+        },
+    ]
+
+
+def test_search_rejects_unsupported_availability_without_provider_call(
+    client: TestClient,
+) -> None:
+    provider = RecordingPlaceProvider()
+    app.dependency_overrides[get_place_provider] = lambda: provider
+    app.dependency_overrides[get_current_datetime] = lambda: (
+        datetime.fromisoformat("2026-07-23T12:00:00-04:00")
+    )
+
+    response = client.post(
+        "/api/places/search",
+        json={
+            "location": {
+                "label": "Union Station coordinates",
+                "latitude": 43.6453,
+                "longitude": -79.3806,
+            },
+            "radius_meters": 2_000,
+            "availability_window": {
+                "starts_at": "2026-07-29T18:00:00-04:00",
+                "ends_at": "2026-07-30T00:00:00-04:00",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": (
+            "Requested availability is outside Google's "
+            "seven-day hours range"
+        )
+    }
+    assert provider.call_count == 0
 
 
 @pytest.mark.parametrize(

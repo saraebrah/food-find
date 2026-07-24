@@ -631,8 +631,10 @@ Time language uses these editable defaults:
 
 - **Tonight:** 6 p.m. to midnight
 - **Dinner:** 5 p.m. to 10 p.m.
-- **At 7 p.m.:** open at that exact time
+- **At 7 p.m.:** open at that exact time, represented by equal start and end timestamps rather than an invented duration
 - If a time window is already underway, start it at the current time.
+- If an implied time or window has fully passed, use its next occurrence and show that assumption.
+- Do not silently move an explicit past date; identify it as unsupported.
 
 Multiple values within one group use **OR**, while different groups combine with **AND**. For example, Persian or Italian cuisines serving pizza or kebab.
 
@@ -646,8 +648,192 @@ Requirements without a dedicated filter, such as a dish or atmosphere preference
 - `assumptions`: the original phrase and its visible interpretation
 - `unsupported_criteria`: the request and the reason it cannot be applied safely
 
-Only `search_criteria` is executable by the current place-search use case. Keeping the remaining meaning beside it prevents later LLM integration from silently discarding information or sending provider-specific parameters into the domain.
+The place-search use case now executes `search_criteria`, `descriptive_requirements`, and `availability_window`. Assumptions and unsupported criteria remain review information and are not sent to the place provider. Keeping these parts separate prevents unsupported meaning from being silently treated as satisfied.
 
 ### Rationale
 
 This preserves what the user asked for while keeping assumptions reviewable and preventing likely matches from being presented as verified facts.
+
+## Gemini free tier as the first LLM adapter
+
+- **Date:** 2026-07-23
+- **Status:** Current development approach
+
+### Decision
+
+FoodFind uses a provider-neutral `SearchInterpreter` port. Google Gemini is the first adapter, with stable `gemini-3.6-flash` as the configurable default.
+
+The adapter uses Google's `google-genai` Python SDK and requests structured output matching FoodFind's Pydantic `SearchIntentOutput`. FoodFind validates the returned value again before converting it into the domain `SearchIntent`. Provider failures become a provider-neutral `SearchInterpreterError`.
+
+`GEMINI_API_KEY` stays in the server-side `.env` file and is separate from the Google Maps key. `GEMINI_MODEL` may replace the default without changing domain or application code. Automated tests inject a fake Gemini client and never make a live request.
+
+The Gemini free tier is suitable for local development, but its limits and availability are controlled by Google. Google states that free-tier content may be used to improve its products. FoodFind must not send secrets or unnecessary sensitive data. The interpreter receives only the submitted search state and the location, time, timezone, and capability context required for interpretation.
+
+The adapter is connected only to the explicit `POST /api/search/interpret` endpoint. Creating or loading the application still makes no Gemini request.
+
+### Rationale
+
+- The free tier avoids an initial per-request development cost.
+- Structured output and Pydantic validation fit the existing Python domain boundary.
+- The port keeps OpenAI, Anthropic, Ollama, or another provider replaceable.
+- Connecting the endpoint only after location and time context were defined keeps each request complete and reviewable.
+
+### Current provider references
+
+- [Gemini 3.6 Flash and current model guidance](https://ai.google.dev/gemini-api/docs/latest-model)
+- [Gemini structured outputs](https://ai.google.dev/gemini-api/docs/structured-output)
+- [Gemini API pricing and free-tier data use](https://ai.google.dev/gemini-api/docs/pricing)
+- [Gemini API key guidance](https://ai.google.dev/gemini-api/docs/api-key)
+
+## Immutable smart-search context and **near me**
+
+- **Date:** 2026-07-23
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+Each interpretation receives one immutable `SearchInterpretationContext`. It contains one timezone-aware current-time snapshot, an IANA timezone name, and FoodFind's supported place types, cuisines, common foods, ratings, sorts, radius limits, boolean filters, and descriptive-requirement kinds.
+
+The submitted `SearchCriteria` supplies the selected-location label and coordinates. The same snapshot is used throughout one interpretation; the adapter does not re-read mutable browser state or the clock.
+
+Until Phase 5 adds device location, **near me** always means the visible submitted selected location. `InterpretSearch` records this assumption deterministically and preserves the submitted location even if an LLM response is incomplete or inconsistent. This policy belongs to the application layer and therefore remains the same if Gemini is replaced.
+
+Capabilities explicitly say that device location and arbitrary location resolution from a sentence are not available yet. The interpreter must identify those requests as unsupported rather than inventing a value. Time-aware availability is enabled and uses the existing immutable date and timezone context.
+
+### Rationale
+
+- One immutable snapshot prevents location or time context from changing partway through interpretation.
+- An explicit capability contract prevents the model from treating future features as current behavior.
+- Enforcing **near me** outside the model makes the user-visible assumption reliable and provider-independent.
+
+## Time-aware availability interpretation
+
+- **Date:** 2026-07-23
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+Gemini resolves time language into the provider-independent `AvailabilityWindow` using the current datetime and IANA timezone from `SearchInterpretationContext`. It must use the correct local UTC offset and must not approximate a future or broader window with the **Open now** filter.
+
+FoodFind applies the agreed defaults for **tonight**, **dinner**, and exact times. An exact time uses equal start and end timestamps, which represents a point without inventing a duration. Ranges may have different start and end timestamps but cannot end before they start.
+
+The application layer normalizes accepted output to the context timezone. If a range is already underway, its start becomes the immutable current time. An output with the wrong local UTC offset or a window entirely in the past is rejected as an interpreter error. For implied language that has already passed, the model uses the next occurrence and records an assumption; an explicit past date remains unsupported.
+
+This step established validated availability data without adding an endpoint itself. Phase 4 Step 6 now displays it as editable criteria through the explicit interpretation endpoint; page loads still do not call Gemini.
+
+### Rationale
+
+- Concrete timezone-aware timestamps make relative language stable after interpretation.
+- Exact points preserve the user's request without inventing an arbitrary interval.
+- Application-layer checks keep time safety consistent if the LLM provider changes.
+- Separating interpretation from UI wiring preserves the explicit-submission lifecycle.
+
+## Explicit interpretation and local review
+
+- **Date:** 2026-07-23
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+FoodFind exposes `POST /api/search/interpret` as the only user-facing LLM entry point. The request contains the submitted sentence, one immutable snapshot of the selected location and current manual criteria, and the browser's IANA timezone. The server supplies one current UTC time snapshot and injects the configured `SearchInterpreter`.
+
+Selecting **Apply request** makes exactly one interpretation request. Typing, rendering, page loading or reloading, and editing interpreted controls make no LLM request. Interpretation does not automatically make a Google Places request.
+
+A validated response replaces the browser's radius, structured filters, and sort, clears stale place results, and displays:
+
+- resolved assumptions
+- descriptive text-relevance requirements
+- unsupported criteria and their reasons
+- a timezone-labelled, editable availability window
+
+The browser marks the interpretation as edited after a manual change but keeps the original assumptions visible for review. Removing or editing availability remains local. A custom interpreted radius is shown in the existing radius selector even when it is not one of the predefined choices.
+
+The review panel states that descriptive requirements are relevance signals rather than verified facts. Phase 4 Step 7 now carries the reviewed descriptive requirements and availability window through the explicit Search action.
+
+The Gemini client and key remain server-side. The dependency is created only for the interpretation endpoint and closed after the request. Missing configuration returns a safe `503`; provider or invalid-output failures return a safe `502`, all with `Cache-Control: no-store`.
+
+### Rationale
+
+- Separating interpretation from search lets the user review and correct the model's output.
+- One explicit action and one immutable snapshot prevent request loops and state drift.
+- Local editing avoids repeat LLM cost and latency.
+- Honest staging prevents unimplemented time or relevance behavior from appearing functional.
+
+## Explicit reviewed-intent search
+
+- **Date:** 2026-07-23
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+Selecting **Search** creates one immutable request containing the current structured criteria, descriptive requirements, and optional availability window. The browser sends it once to `POST /api/places/search`; it does not call Gemini again. Typing, rendering, reloading, interpreting, and editing remain request-free until the user explicitly selects **Apply request** or **Search**.
+
+The provider port accepts descriptive requirements and an availability window without exposing Google-specific fields to the application. The Google adapter adds descriptive text to its deterministic Text Search query. This changes relevance only and is not evidence that a dish, dietary request, or atmosphere is actually available.
+
+When availability is active, the adapter conditionally requests `places.currentOpeningHours` and `places.timeZone` in the same Text Search response. This makes that search Enterprise because current opening hours are an Enterprise field; it does not create Place Details calls for each result. The adapter converts Google periods into provider-independent timezone-aware opening periods, and the application applies the time rule:
+
+- a non-empty requested range matches when an opening period overlaps any part of it
+- an exact requested time matches only when it falls inside an opening period
+- missing or unusable hours cannot confirm the requirement, so the candidate is excluded
+
+Raw opening periods are used only during server-side filtering and are excluded from the result response. The existing one-batch, one-Google-request limit remains unchanged.
+
+### Rationale
+
+- One explicit snapshot preserves the reviewed intent without request loops or state drift.
+- Application-layer time matching stays testable and provider-independent.
+- Conditional fields preserve the lower-cost default search when no time window is active.
+- Excluding unconfirmed candidates avoids presenting missing hours as proof of availability.
+
+Google lists `currentOpeningHours` under Text Search Enterprise and `timeZone` under Text Search Pro in its [Places API field table](https://developers.google.com/maps/documentation/places/web-service/data-fields).
+
+## Deterministic match explanations
+
+- **Date:** 2026-07-23
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+`SearchPlaces` creates each result's match reasons after all provider-independent filtering is complete. A reason contains a short deterministic message and one of two evidence labels:
+
+- **Confirmed:** supported by the submitted criteria, FoodFind's distance calculation, or data already returned by the provider
+- **Relevance only:** a cuisine, food, dish, dietary, atmosphere, or other text term that influenced provider search relevance but is not a verified fact
+
+Confirmed explanations may identify the provider category, selected radius, an active Open now or minimum-rating condition, active dine-in or takeout requirements, and provider hours overlapping a requested time. Explanations mention only active criteria; sorting alone is not described as proof that a result matched.
+
+A single selected common food uses the agreed warning, such as **“Kebab availability is not verified—check the menu or call.”** If a descriptive dish requirement repeats an active common-food filter, FoodFind keeps one message. Other descriptive requirements retain the reviewed text and state the appropriate verification limitation.
+
+Match reasons are serialized in the existing search response. The result card renders them inside a native **Why this matched** disclosure. Expanding or collapsing it is entirely local and creates no Gemini, Google Text Search, or Place Details request.
+
+### Rationale
+
+- Deterministic explanations are testable and cannot add unsupported LLM claims.
+- Evidence labels make provider-confirmed data visibly different from text relevance.
+- Reusing the submitted snapshot and existing response prevents extra cost and request loops.
+- A compact disclosure keeps result cards manageable while satisfying the PRD's explanation requirement.
+
+## Smart-search failure and capability boundary
+
+- **Date:** 2026-07-23
+- **Status:** Accepted for Phase 4
+
+### Decision
+
+FoodFind does not trust valid JSON alone. After Pydantic validation, the application revalidates every interpreted filter, sort, radius, descriptive-requirement kind, and availability request against the immutable capability snapshot supplied for that interpretation. A disabled or unknown capability is an interpreter failure; it is not silently accepted.
+
+Malformed model output and interpreter failures return a safe error and leave the browser's current criteria unchanged. Unsupported criteria the interpreter identifies correctly remain visible in the review panel but are not sent to place search. The user may explicitly search using only the supported criteria.
+
+Google's `currentOpeningHours` covers today and the next six days. FoodFind includes this seven-day horizon in the interpreter capability contract. An interpreted window beyond it is rejected as invalid output. Because the user can edit the window locally, place search validates it again and returns a safe input error before calling Google when it is in the past or beyond the same horizon.
+
+Missing place data is never inferred. Cards show an unavailable label or operational-status warning where appropriate. A missing field fails any active filter that requires provider confirmation. An empty result set receives actionable guidance distinct from invalid input or temporary failure.
+
+Interpretation and place search are retried only through another explicit user action. Loading, reloading, rendering, errors, and empty results never create an automatic retry.
+
+### Rationale
+
+- Application-side enforcement keeps the capability boundary reliable if the prompt or LLM provider changes.
+- Validating edited time windows before provider access avoids a Google request that cannot confirm the requested time.
+- Preserving unsupported criteria lets the user see what was omitted without misrepresenting it as applied.
+- Explicit recovery avoids request loops and unexpected Gemini or Google cost.
+
+Google documents `currentOpeningHours` as covering the next seven days, including today, in the [Place resource reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places).

@@ -1,8 +1,10 @@
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     field_validator,
+    model_validator,
 )
 
 from app.domain.location import SelectedLocation
@@ -16,6 +18,11 @@ from app.domain.search import (
     SearchCriteria,
     SearchFilters,
     SearchSort,
+)
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+    DescriptiveRequirementKind,
 )
 
 
@@ -100,7 +107,36 @@ class SearchFiltersRequest(BaseModel):
         )
 
 
-class SearchPlacesRequest(BaseModel):
+class DescriptiveRequirementRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    text: str = Field(min_length=1, max_length=200)
+    kind: DescriptiveRequirementKind
+
+    def to_domain(self) -> DescriptiveRequirement:
+        return DescriptiveRequirement(text=self.text, kind=self.kind)
+
+
+class AvailabilityWindowRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    starts_at: AwareDatetime
+    ends_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def end_must_not_precede_start(self) -> "AvailabilityWindowRequest":
+        if self.ends_at < self.starts_at:
+            raise ValueError("Availability window must not end before it starts")
+        return self
+
+    def to_domain(self) -> AvailabilityWindow:
+        return AvailabilityWindow(
+            starts_at=self.starts_at,
+            ends_at=self.ends_at,
+        )
+
+
+class SearchCriteriaRequest(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
 
     location: SelectedLocationRequest
@@ -114,4 +150,27 @@ class SearchPlacesRequest(BaseModel):
             radius_meters=self.radius_meters,
             filters=self.filters.to_domain(),
             sort=self.sort,
+        )
+
+
+class SearchPlacesRequest(SearchCriteriaRequest):
+    descriptive_requirements: tuple[DescriptiveRequirementRequest, ...] = Field(
+        default=(),
+        max_length=20,
+    )
+    availability_window: AvailabilityWindowRequest | None = None
+
+    def descriptive_requirements_to_domain(
+        self,
+    ) -> tuple[DescriptiveRequirement, ...]:
+        return tuple(
+            requirement.to_domain()
+            for requirement in self.descriptive_requirements
+        )
+
+    def availability_window_to_domain(self) -> AvailabilityWindow | None:
+        return (
+            self.availability_window.to_domain()
+            if self.availability_window is not None
+            else None
         )

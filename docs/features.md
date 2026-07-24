@@ -223,19 +223,41 @@ Map selection and device current location remain together in Phase 5.
 ### Current foundation
 
 - `SearchIntent` contains the existing `SearchCriteria` plus descriptive requirements, an optional availability window, resolved assumptions, and unsupported criteria.
-- `SearchCriteria` remains the provider-independent contract for the location, radius, filters, and sort that the current search can execute.
+- `SearchCriteria` remains the provider-independent base contract for location, radius, filters, and sort. Descriptive requirements and an availability window travel beside it in the reviewed search request.
 - Availability windows use concrete timezone-aware start and end times.
-- Defining or constructing an intent makes no LLM or Google request.
-
-### Planned behavior
-
-- The LLM converts a natural-language request into a validated, provider-independent `SearchIntent`.
-- The intent keeps structured filters, descriptive requirements, resolved assumptions, and unsupported criteria separate.
-- Assumptions are visible and editable before the search runs.
-- Within one filter group, multiple values mean **OR**; across different groups, they mean **AND**.
-- Descriptive requirements without a dedicated filter, such as `quiet` or `serves kebab`, remain in the Text Search query.
-- A text match is not presented as a verified fact. For a requested dish, the result explains: **“Kebab availability is not verified—check the menu or call.”**
-- Criteria that cannot be used safely are identified instead of being silently ignored or presented as satisfied.
+- `InterpretSearch` depends on a provider-neutral interpreter port. Gemini is the first adapter; another provider can implement the same port.
+- Gemini structured output is revalidated with Pydantic before it becomes a `SearchIntent`.
+- The default model is the configurable `gemini-3.6-flash`.
+- One immutable interpretation context supplies the current local date and time, IANA timezone, and an explicit snapshot of the filters and behavior FoodFind supports.
+- Gemini receives the submitted selected-location label and coordinates with that context. It may use the location as a reference but cannot replace it.
+- Until device location is implemented, **near me** deterministically means the submitted visible selected location. `InterpretSearch` records this as a visible assumption independently of the LLM provider.
+- Time-aware availability is an enabled interpreter capability. Gemini resolves time language against the immutable local datetime and IANA timezone; device location remains unavailable.
+- Availability output is normalized into the supplied timezone. A range already underway starts at the context's current time. A fully past or incorrectly offset result is rejected rather than silently used.
+- Requested-time confirmation is limited to Google's current seven-day opening-hours horizon: today and the next six days. An interpreted window beyond that range is rejected as invalid output; an edited window beyond it is rejected before Google is called.
+- An exact-time request has equal start and end timestamps so FoodFind does not invent a duration. A true range must not end before it starts.
+- **Open now** continues to use the existing structured filter. Future or broader time language uses `availability_window` and is not approximated as **Open now**.
+- `POST /api/search/interpret` accepts one query, one immutable current `SearchCriteria` snapshot, and one browser IANA timezone. The server supplies one current UTC time snapshot and returns a validated provider-independent intent.
+- The Gemini dependency is created only for that endpoint. A missing server-side Gemini key returns a safe `503`; provider or invalid-output failures return a safe `502`.
+- The browser sends one interpretation request only when the user selects **Apply request**. Loading, reloading, typing, rendering, and editing controls send no LLM request.
+- A successful interpretation replaces the radius, filters, and sort with the validated values and clears stale results without starting a Google place search.
+- The review panel displays assumptions, unsupported criteria, descriptive text-relevance preferences, and an editable availability window. Removing or editing the time preference is local.
+- Unsupported criteria stay visible but are not sent to the place search. The user may explicitly search with the supported criteria that remain.
+- Manual edits after interpretation remain local and visibly mark the criteria as edited. They do not reinterpret the sentence.
+- Selecting **Search** takes one immutable snapshot of the current structured controls, descriptive requirements, and editable availability window. It makes one place-search request and does not call Gemini again.
+- Descriptive requirements are appended to the deterministic Google Text Search query. They affect text relevance but are never presented as provider-verified facts.
+- An active availability window conditionally adds `places.currentOpeningHours` and `places.timeZone` to that same Text Search request. Current opening hours make the request Enterprise; no per-result Place Details request is created.
+- FoodFind compares Google opening periods with the requested timezone-aware timestamps. A range matches when the place is open during at least part of it; an exact time must fall inside an opening period.
+- Missing opening periods or timezone data cannot confirm an active time requirement, so that candidate is excluded. Raw opening periods remain server-side and are not returned to the browser.
+- Loading, reloading, typing, rendering, applying local edits, and displaying an interpretation do not search Google. Automated lifecycle tests verify one explicit Search produces one request.
+- After filtering, FoodFind builds deterministic match reasons from the submitted criteria and already-returned place data. No LLM writes result explanations.
+- Each reason is labelled **Confirmed** or **Relevance only**. Confirmed reasons may cover provider category, the selected radius, an active Open now or minimum-rating filter, active service filters, and requested-time overlap.
+- Cuisine, common-food, dish, dietary, atmosphere, and other descriptive matches remain relevance-only unless a future approved source verifies them. A dish explanation uses: **“Kebab availability is not verified—check the menu or call.”**
+- If a structured common-food filter and descriptive dish requirement refer to the same food, FoodFind displays one relevance explanation rather than repeating it.
+- The existing search response includes the reasons. Each card exposes them through a local **Why this matched** disclosure; opening or closing it makes no Gemini, Text Search, or Place Details request.
+- FoodFind revalidates the LLM's structured output against the submitted capability snapshot. Malformed output, disabled capabilities, and interpreter failures produce safe errors and do not alter the current criteria.
+- Missing place fields are labelled unavailable rather than inferred. If an active filter requires provider confirmation, a missing value does not satisfy it.
+- No results, invalid criteria, interpreter failures, and place-provider failures have distinct guidance. None of these states automatically retries an LLM or Google request.
+- Automated tests use a fake Gemini client and make no live LLM request.
 
 ### Language defaults
 
@@ -243,8 +265,9 @@ Map selection and device current location remain together in Phase 5.
 - **Highly rated** means a minimum rating of 4.5.
 - **Best** or **top rated** means rating sort with no invented minimum.
 - **Tonight** means 6 p.m. to midnight, and **dinner** means 5 p.m. to 10 p.m.
-- A specific time, such as **at 7 p.m.**, means open at that time.
+- A specific time, such as **at 7 p.m.**, means open at that exact instant; its start and end timestamps are equal.
 - If a requested time window has already started, the window begins at the current time.
+- If an implied time has fully passed, use its next occurrence and show that assumption. An explicit past date is unsupported rather than silently moved.
 - The interpreted time window is visible and editable.
 
 ## Place and address autocomplete

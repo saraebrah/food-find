@@ -1,10 +1,11 @@
 import json
+from datetime import datetime
 
 import httpx
 import pytest
 
 from app.adapters.google_places import GooglePlacesGateway
-from app.domain.place import Coordinates, Place, PlaceDetails
+from app.domain.place import Coordinates, OpeningPeriod, Place, PlaceDetails
 from app.domain.search import (
     CommonFood,
     Cuisine,
@@ -12,6 +13,11 @@ from app.domain.search import (
     PlaceType,
     SearchFilters,
     SearchSort,
+)
+from app.domain.search_intent import (
+    AvailabilityWindow,
+    DescriptiveRequirement,
+    DescriptiveRequirementKind,
 )
 from app.ports.place_provider import PlaceProviderError
 
@@ -135,6 +141,99 @@ async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
         )
 
     assert places == []
+
+
+@pytest.mark.anyio
+async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods() -> None:
+    window = AvailabilityWindow(
+        starts_at=datetime.fromisoformat("2026-07-23T18:00:00-04:00"),
+        ends_at=datetime.fromisoformat("2026-07-24T00:00:00-04:00"),
+    )
+
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["textQuery"] == (
+            "restaurants with Persian cuisine quiet atmosphere"
+        )
+        assert request.headers["X-Goog-FieldMask"] == (
+            "places.id,places.displayName,places.primaryType,places.types,"
+            "places.primaryTypeDisplayName,places.formattedAddress,places.location,"
+            "places.businessStatus,places.currentOpeningHours,places.timeZone"
+        )
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "places": [
+                    {
+                        "id": "google-place-1",
+                        "displayName": {"text": "Quiet Restaurant"},
+                        "primaryType": "restaurant",
+                        "types": ["restaurant", "food"],
+                        "location": {
+                            "latitude": 43.6454,
+                            "longitude": -79.3805,
+                        },
+                        "currentOpeningHours": {
+                            "periods": [
+                                {
+                                    "open": {
+                                        "date": {
+                                            "year": 2026,
+                                            "month": 7,
+                                            "day": 23,
+                                        },
+                                        "hour": 17,
+                                        "minute": 0,
+                                    },
+                                    "close": {
+                                        "date": {
+                                            "year": 2026,
+                                            "month": 7,
+                                            "day": 23,
+                                        },
+                                        "hour": 23,
+                                        "minute": 0,
+                                    },
+                                }
+                            ]
+                        },
+                        "timeZone": {"id": "America/Toronto"},
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handle_request)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        gateway = GooglePlacesGateway(
+            api_key="test-api-key",
+            http_client=http_client,
+        )
+        places = await gateway.search_nearby(
+            latitude=43.6453,
+            longitude=-79.3806,
+            radius_meters=1000,
+            filters=SearchFilters(
+                place_types=(PlaceType.RESTAURANT,),
+                cuisines=(Cuisine.PERSIAN,),
+            ),
+            sort=SearchSort.PROVIDER_DEFAULT,
+            descriptive_requirements=(
+                DescriptiveRequirement(
+                    text="quiet atmosphere",
+                    kind=DescriptiveRequirementKind.ATMOSPHERE,
+                ),
+            ),
+            availability_window=window,
+        )
+
+    assert places[0].opening_periods == (
+        OpeningPeriod(
+            starts_at=datetime.fromisoformat("2026-07-23T17:00:00-04:00"),
+            ends_at=datetime.fromisoformat("2026-07-23T23:00:00-04:00"),
+        ),
+    )
 
 
 @pytest.mark.anyio

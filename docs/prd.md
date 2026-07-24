@@ -182,4 +182,4 @@ FoodFind's opportunity is to make food discovery more focused:
 
 ## Immediate next step
 
-Add the Phase 4 server-side LLM interpreter behind a replaceable port. Its structured output must be validated before it becomes the provider-independent `SearchIntent`; automated tests must use mocked LLM responses.
+Phase 4 smart search is complete. Review it end to end, then begin Phase 5 by displaying the current results on a map.
