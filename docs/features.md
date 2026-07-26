@@ -118,6 +118,7 @@ Map selection and device current location remain together in Phase 5.
 - The place-type control supports restaurant, café, bar, and bakery as independent checkboxes. At least one must be selected before searching.
 - The cuisine control supports Chinese, Italian, Persian, Thai, and Indian. Multiple selections match any selected cuisine.
 - The common-food control supports pizza, burgers, steak, ramen, and kebab. A match represents Google text relevance and does not confirm that a specific item is currently on the menu.
+- Text relevance can include weak common-food matches. FoodFind does not currently remove a result merely because the requested food is not evident from its name or provider category; improving this safely is deferred to the roadmap.
 - Cuisine and common-food selections can be active together. The Google adapter includes both concepts in the same deterministic Text Search query.
 - Changing any filter or the sort clears stale results and displays guidance but does not search automatically.
 - The Google adapter builds one `textQuery` from the selected place types, cuisines, and common foods. The query contains no location label because location is supplied separately as a geographic restriction.
@@ -161,6 +162,7 @@ Map selection and device current location remain together in Phase 5.
 - A place with false or missing current-opening-hours data does not satisfy Open now.
 - Selecting a minimum rating or rating sorting adds only `places.rating` to the search field mask and makes no extra request.
 - Supported minimum ratings are exactly 3.0, 3.5, 4.0, and 4.5; unsupported thresholds return HTTP `422`.
+- Smart-search comparisons outside those presets, such as **rating greater than 4.8**, remain unsupported and must not be rounded or silently applied as another threshold.
 - A missing rating is excluded by a minimum filter but retained at the end of rating-sorted results when no minimum is active.
 - Rating sorting is descending and stable for equal values.
 - Combining multiple Enterprise filters adds each required field once to the same Text Search request.

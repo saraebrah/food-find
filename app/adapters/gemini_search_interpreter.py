@@ -79,7 +79,9 @@ class GeminiSearchInterpreter:
                 config=types.GenerateContentConfig(
                     system_instruction=GEMINI_SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
-                    response_schema=SearchIntentOutput,
+                    response_json_schema=(
+                        SearchIntentOutput.model_json_schema()
+                    ),
                 ),
             )
         except Exception as error:

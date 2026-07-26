@@ -113,12 +113,18 @@ async def test_gemini_uses_structured_output_with_step_four_context() -> None:
     assert '"current_datetime":"2026-07-23T11:30:00-04:00"' in contents
     assert '"timezone":"America/Toronto"' in contents
     assert '"place_types":["restaurant","cafe","bar","bakery"]' in contents
+    assert '"minimum_rating":null' in contents
+    assert '"minimum_ratings":[3.0,3.5,4.0,4.5]' in contents
     assert '"time_aware_availability":true' in contents
     assert '"availability_horizon_days":7' in contents
     assert '"device_location":false' in contents
     config = call["config"]
     assert config.response_mime_type == "application/json"
-    assert config.response_schema is SearchIntentOutput
+    assert config.response_schema is None
+    assert (
+        config.response_json_schema
+        == SearchIntentOutput.model_json_schema()
+    )
     assert config.system_instruction == GEMINI_SYSTEM_INSTRUCTION
     assert "Good rated means a minimum rating of 4.0" in GEMINI_SYSTEM_INSTRUCTION
     assert "near me" in GEMINI_SYSTEM_INSTRUCTION.lower()

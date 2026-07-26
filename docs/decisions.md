@@ -388,7 +388,7 @@ The completed Pro group adds two small provider-independent specialty taxonomies
 - Cuisine: Chinese, Italian, Persian, Thai, and Indian
 - Common food: pizza, burgers, steak, ramen, and kebab
 
-The Google adapter maps those values to current Table A primary types such as `italian_restaurant`, `pizza_restaurant`, and `hamburger_restaurant`. Common-food choices describe the provider's business classification; they do not confirm menu-item availability. Pasta is omitted because Google does not expose a request-filterable pasta type.
+The former Nearby Search adapter mapped those values to Table A primary types such as `italian_restaurant`, `pizza_restaurant`, and `hamburger_restaurant`. The current Text Search adapter instead includes cuisine and common-food terms in `textQuery`, so a match represents provider relevance rather than a required business classification or confirmed menu item. Pasta remains omitted until its search quality is defined and verified.
 
 Google allows multiple selected values within one positive primary-type restriction, but treats them as OR. Because cuisine and common food are separate FoodFind facets that should not silently become an OR across facets, only one of those groups may be active in a search. The browser disables the inactive group and explains how to switch; the API and domain also reject a conflicting request. Multiple choices within the active group still mean “match any selected choice.”
 
@@ -663,7 +663,7 @@ This preserves what the user asked for while keeping assumptions reviewable and 
 
 FoodFind uses a provider-neutral `SearchInterpreter` port. Google Gemini is the first adapter, with stable `gemini-3.6-flash` as the configurable default.
 
-The adapter uses Google's `google-genai` Python SDK and requests structured output matching FoodFind's Pydantic `SearchIntentOutput`. FoodFind validates the returned value again before converting it into the domain `SearchIntent`. Provider failures become a provider-neutral `SearchInterpreterError`.
+The adapter uses Google's `google-genai` Python SDK and sends the Pydantic-generated JSON Schema through `response_json_schema`. This path preserves strict object validation and numeric rating enums that the legacy `response_schema` conversion cannot represent reliably. FoodFind validates the returned value again before converting it into the domain `SearchIntent`. Provider failures become a provider-neutral `SearchInterpreterError`.
 
 `GEMINI_API_KEY` stays in the server-side `.env` file and is separate from the Google Maps key. `GEMINI_MODEL` may replace the default without changing domain or application code. Automated tests inject a fake Gemini client and never make a live request.
 
@@ -837,3 +837,41 @@ Interpretation and place search are retried only through another explicit user a
 - Explicit recovery avoids request loops and unexpected Gemini or Google cost.
 
 Google documents `currentOpeningHours` as covering the next seven days, including today, in the [Place resource reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places).
+
+## Defer food-match precision and exact rating comparisons
+
+- **Date:** 2026-07-25
+- **Status:** Future enhancement
+
+### Decision
+
+FoodFind will not currently infer food availability from a business name, LLM response, or unexplained Text Search rank. Common-food terms remain relevance signals, which can produce weak matches.
+
+Future work must improve food-search accuracy and make match explanations less confusing while remaining honest about unverified menu items. The evidence sources, filtering behavior, ranking behavior, and explanation rules will be researched and decided when that work begins.
+
+FoodFind will also defer arbitrary rating comparisons. The current structured filter remains limited to 3.0, 3.5, 4.0, and 4.5 minimum presets. A request such as **rating greater than 4.8** stays unsupported rather than being rounded. Future work must represent and apply exact comparison language correctly; the detailed behavior and implementation approach remain undecided.
+
+### Rationale
+
+- Removing weak matches without reliable evidence could hide relevant businesses.
+- Provider classification and verified menu availability are different claims and need different explanations.
+- Google rounds `minRating` upward to a half-point value, so it cannot directly express every natural-language threshold.
+
+## Phase 5 map provider and current-location submission
+
+- **Date:** 2026-07-25
+- **Status:** Accepted for Phase 5
+
+### Decision
+
+FoodFind will use Google Maps for the Phase 5 embedded map.
+
+After the user explicitly selects **Use current location** and grants permission, FoodFind sets the normalized selected location and recenters the map. It does not search until the user presses **Search**. Immediate search after resolving the device location remains a possible future enhancement.
+
+The embedded map will use a separate browser-restricted Google Maps JavaScript API key. The existing Google Places key remains server-side and is not reused in the frontend.
+
+### Rationale
+
+- Google Places results displayed on a map must be shown on a Google map under Google's Places policies.
+- Waiting for **Search** keeps location selection consistent with other location inputs and avoids an unexpected Places request.
+- A separate browser key can be restricted to approved website referrers and the Maps JavaScript API without exposing the server-side Places credential.
