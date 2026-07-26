@@ -125,7 +125,7 @@ The LLM resolves language into a validated FoodFind intent; it does not call Goo
 3. Support selecting a business from either view.
 4. Let users select or adjust the search location on the map.
 5. Add **Use current location** and request browser permission only after the user selects it.
-6. Recenter and search around the user's position.
+6. Set the selected location and recenter around the user's position. Wait for the user to press **Search**.
 7. Handle denied, inaccurate, or unavailable location while keeping manual selection as a fallback.
 8. Update the map when the location or radius changes.
 
@@ -173,6 +173,22 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 - Store source, last-checked time, and field-level provenance; do not infer menu availability from cuisine, business name, or an LLM response.
 - Begin with a small Toronto-area experiment before expanding coverage or building menu search at scale.
 
+### Food-search relevance and explanations
+
+- Common-food searches can return weak matches. For example, Gigi's Street Eats appeared for **burger** even though FoodFind had no reliable evidence that it offered burgers.
+- The current explanation is also too generic. A business that is clearly categorized as a burger restaurant can still receive **Burger availability is not verified**, making FoodFind appear uncertain about why the result matched.
+- Preserve the observed Gigi's Street Eats and The Burger's Priest cases as examples of what needs improvement. Research and choose the implementation approach when this enhancement begins.
+
+### Exact natural-language rating comparisons
+
+- FoodFind currently supports only the 3.0, 3.5, 4.0, and 4.5 minimum-rating presets.
+- It cannot currently represent or apply a natural-language comparison such as **rating greater than 4.8**. Google also rounds a `minRating` of `4.8` up to `5.0`, so passing the value through would not preserve the user's request.
+
+### New smart searches can retain filters from an earlier request
+
+- Applying a new smart-search sentence can preserve filters created by the previous sentence even when the new request does not mention them.
+- Observed example: after applying a burger search, applying **Chinese food** selected Chinese cuisine but left **Burger** selected under Common food. The following place search therefore still included burger even though it was absent from the new sentence.
+
 ### Broader category and provider coverage
 
 - Revisit useful categories that the current FoodFind taxonomy does not represent reliably, including a generic food-truck filter and common foods such as pasta.
@@ -181,6 +197,7 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 ### Other product enhancements
 
+- Reconsider whether **Use current location** should search immediately after resolving the position instead of waiting for a separate **Search** action.
 - Saved favourites
 - Shortlists and comparison
 - Walking, transit, and driving travel times
@@ -191,7 +208,3 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 ## Current next task
 
 Phase 4 is complete. Review smart search end to end, then start Phase 5 Step 1 by displaying the current results on a map.
-
-## Open decisions
-
-- Map provider

@@ -4,7 +4,7 @@ This is a numbered, living list of Google Places limitations that affect FoodFin
 
 FoodFind currently uses Text Search for food-business discovery. The Nearby Search limitations remain documented because they explain why FoodFind migrated away from that endpoint and may matter if the provider strategy is revisited.
 
-The information was last reviewed on 2026-07-21. Google's API behavior, fields, billing tiers, and usage terms can change, so verify the linked documentation before implementing related work.
+The information was last reviewed on 2026-07-25. Google's API behavior, fields, billing tiers, and usage terms can change, so verify the linked documentation before implementing related work.
 
 ## 1. Nearby Search returns at most 20 results
 
@@ -85,3 +85,17 @@ Some useful concepts also lack a suitable structured Nearby Search type. FoodFin
 Google may not provide every field for every place, and returned information may be outdated. FoodFind must show that information is unknown rather than infer it.
 
 Each search and continuation batch is an API request. The requested response fields also determine the highest Google billing tier used for that request, so broader searches and richer data can increase cost.
+
+## 9. Text relevance can produce weak food matches
+
+Including **burger** or another food in `textQuery` influences Google's relevance ranking, but it is not a strict requirement that every returned place visibly offers that food. A result can therefore rank highly even when FoodFind has no reliable evidence that the requested food is available.
+
+FoodFind currently has no trustworthy post-search field that confirms an individual menu item. Food-search accuracy and explanations need to be enhanced, but the evidence sources and implementation approach remain undecided. A business name or LLM inference alone must not be treated as confirmation.
+
+## 10. Exact rating comparisons do not map directly to `minRating`
+
+Google Text Search accepts `minRating` from 0.0 through 5.0 at a 0.5 cadence and rounds other inputs upward. Sending `4.8` therefore behaves like `5.0`, which cannot represent a user's request for places rated greater than 4.8 because it would exclude places rated 4.9.
+
+FoodFind currently exposes minimum presets of 3.0, 3.5, 4.0, and 4.5. It therefore cannot currently apply exact natural-language comparisons such as **rating greater than 4.8**. The search and interpretation behavior needs to be enhanced before these requirements can be represented accurately; the implementation approach remains undecided.
+
+Reference: [Text Search `minRating`](https://developers.google.com/maps/documentation/places/web-service/text-search#minrating)
