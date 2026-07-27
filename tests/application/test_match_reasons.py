@@ -58,6 +58,28 @@ def test_structured_food_collapses_a_duplicate_dish_requirement() -> None:
     assert all("serves kebabs" not in text for text in texts)
 
 
+def test_multiword_food_uses_a_readable_label_and_collapses_duplicate_text() -> None:
+    reasons = build_match_reasons(
+        place=place(),
+        criteria=criteria_with(
+            filters=SearchFilters(common_foods=(CommonFood.ICE_CREAM,))
+        ),
+        descriptive_requirements=(
+            DescriptiveRequirement(
+                text="serves ice cream",
+                kind=DescriptiveRequirementKind.DISH,
+            ),
+        ),
+        availability_window=None,
+    )
+
+    texts = [reason.text for reason in reasons]
+    assert texts.count(
+        "Ice Cream availability is not verified—check the menu or call."
+    ) == 1
+    assert all("serves ice cream" not in text for text in texts)
+
+
 def test_relevance_reasons_do_not_claim_cuisine_or_dietary_facts() -> None:
     reasons = build_match_reasons(
         place=place(),

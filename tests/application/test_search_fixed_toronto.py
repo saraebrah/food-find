@@ -5,7 +5,6 @@ import pytest
 from app.application.search_fixed_toronto import (
     TORONTO_CITY_HALL,
     TORONTO_SEARCH_RADIUS_METERS,
-    TORONTO_SEARCH_TYPES,
     SearchFixedTorontoPlaces,
 )
 from app.domain.place import Place
@@ -56,7 +55,7 @@ async def test_fixed_toronto_search_calls_provider_once_with_fixed_criteria() ->
             "latitude": TORONTO_CITY_HALL.latitude,
             "longitude": TORONTO_CITY_HALL.longitude,
             "radius_meters": TORONTO_SEARCH_RADIUS_METERS,
-            "filters": SearchFilters(place_types=TORONTO_SEARCH_TYPES),
+            "filters": SearchFilters(),
             "sort": SearchSort.PROVIDER_DEFAULT,
         }
     ]

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.domain.search import CommonFood, Cuisine, MinimumRating, PlaceType, SearchSort
+from app.domain.search import CommonFood, Cuisine, MinimumRating, SearchSort
 from app.domain.search_intent import DescriptiveRequirementKind
 
 
@@ -10,7 +10,6 @@ from app.domain.search_intent import DescriptiveRequirementKind
 class SearchCapabilities:
     """FoodFind-owned behavior the interpreter may express."""
 
-    place_types: tuple[PlaceType, ...]
     cuisines: tuple[Cuisine, ...]
     common_foods: tuple[CommonFood, ...]
     minimum_ratings: tuple[MinimumRating, ...]
@@ -29,7 +28,6 @@ class SearchCapabilities:
 
 
 FOODFIND_SEARCH_CAPABILITIES = SearchCapabilities(
-    place_types=tuple(PlaceType),
     cuisines=tuple(Cuisine),
     common_foods=tuple(CommonFood),
     minimum_ratings=tuple(MinimumRating),

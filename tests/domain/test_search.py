@@ -1,20 +1,16 @@
-import pytest
-
 from app.domain.search import (
-    DEFAULT_PLACE_TYPES,
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchFilters,
     SearchSort,
 )
 
 
-def test_search_filters_default_to_restaurant_and_cafe() -> None:
+def test_search_filters_have_no_place_type_dimension() -> None:
     filters = SearchFilters()
 
-    assert filters.place_types == DEFAULT_PLACE_TYPES
+    assert not hasattr(filters, "place_types")
     assert filters.open_now is False
     assert filters.minimum_rating is None
     assert filters.dine_in is False
@@ -26,18 +22,39 @@ def test_search_rating_contract_uses_supported_thresholds_and_order() -> None:
     assert SearchSort.RATING.value == "rating"
 
 
-@pytest.mark.parametrize(
-    "place_types",
-    (
-        (),
-        (PlaceType.RESTAURANT, PlaceType.RESTAURANT),
-    ),
-)
-def test_search_filters_require_unique_non_empty_place_types(
-    place_types: tuple[PlaceType, ...],
-) -> None:
-    with pytest.raises(ValueError):
-        SearchFilters(place_types=place_types)
+def test_cuisine_contract_includes_the_expanded_supported_options() -> None:
+    assert [cuisine.value for cuisine in Cuisine] == [
+        "chinese",
+        "italian",
+        "persian",
+        "thai",
+        "indian",
+        "mexican",
+        "japanese",
+        "korean",
+        "vietnamese",
+        "mediterranean",
+    ]
+
+
+def test_common_food_contract_includes_the_expanded_options() -> None:
+    assert [food.value for food in CommonFood] == [
+        "pizza",
+        "burger",
+        "steak",
+        "ramen",
+        "kebab",
+        "shawarma",
+        "ice_cream",
+        "dessert",
+        "sweets",
+        "drinks",
+        "sushi",
+        "taco",
+        "salad",
+        "soup",
+        "pasta",
+    ]
 
 
 def test_search_filters_allow_cuisine_and_common_food_together() -> None:

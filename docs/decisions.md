@@ -343,7 +343,7 @@ Changing the radius clears the visible result state but does not search. When th
 ## Place-type filter
 
 - **Date:** 2026-07-18
-- **Status:** Provider mapping superseded by Text Search-only discovery on 2026-07-21; the FoodFind filter contract remains current
+- **Status:** Superseded by removal of the filter on 2026-07-26
 
 ### Decision
 
@@ -385,10 +385,10 @@ Google's current Nearby Search type table does not contain a generic `food_truck
 
 The completed Pro group adds two small provider-independent specialty taxonomies:
 
-- Cuisine: Chinese, Italian, Persian, Thai, and Indian
-- Common food: pizza, burgers, steak, ramen, and kebab
+- Cuisine: Chinese, Italian, Persian, Thai, Indian, Mexican, Japanese, Korean, Vietnamese, and Mediterranean
+- Common food: pizza, burgers, steak, ramen, kebab, shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, and pasta
 
-The former Nearby Search adapter mapped those values to Table A primary types such as `italian_restaurant`, `pizza_restaurant`, and `hamburger_restaurant`. The current Text Search adapter instead includes cuisine and common-food terms in `textQuery`, so a match represents provider relevance rather than a required business classification or confirmed menu item. Pasta remains omitted until its search quality is defined and verified.
+The former Nearby Search adapter mapped the original values to Table A primary types such as `italian_restaurant`, `pizza_restaurant`, and `hamburger_restaurant`. The current Text Search adapter instead includes cuisine and common-food terms in `textQuery`, so a match represents provider relevance rather than a required business classification or confirmed menu item.
 
 Google allows multiple selected values within one positive primary-type restriction, but treats them as OR. Because cuisine and common food are separate FoodFind facets that should not silently become an OR across facets, only one of those groups may be active in a search. The browser disables the inactive group and explains how to switch; the API and domain also reject a conflicting request. Multiple choices within the active group still mean “match any selected choice.”
 
@@ -583,9 +583,9 @@ All food-business discovery uses Google Text Search. FoodFind does not route ind
 
 One explicit FoodFind search produces one Text Search request with `pageSize=20`. The current implementation does not request continuation batches; automatic top-up and infinite scrolling remain future work. Rendering, reloading, and editing criteria still produce no search request.
 
-The Google adapter constructs a deterministic `textQuery` from the submitted place types, cuisines, and common foods. Cuisine and common food can now coexist. Their presence means Google text relevance, not verified menu availability.
+The Google adapter constructs a deterministic `textQuery` from a fixed broad food-business scope, submitted cuisines, and submitted common foods. Cuisine and common food can now coexist. Their presence means Google text relevance, not verified menu availability.
 
-Text Search accepts only one strict `includedType`. When exactly one place type is selected, FoodFind sends that value with `strictTypeFiltering=true`. When several place types are selected, all are included in `textQuery`; FoodFind also requests `places.types` and removes a returned place when its known types match none of the selections. Missing type data remains unconfirmed rather than being inferred.
+Place type is not submitted and the adapter does not send `includedType`. It removes a returned place when its known Google types do not match the fixed food-business scope. Missing type data remains unconfirmed rather than being inferred.
 
 Text Search can restrict a categorical query to a rectangle, not a circle. For ordinary locations, FoodFind calculates a rectangle enclosing the submitted circle. Near a pole or when the circle crosses the antimeridian, where one valid rectangle cannot represent that area, it uses a circular location bias instead. In every case, the application calculates exact straight-line distance from the immutable submitted location and removes results outside the selected radius.
 
@@ -601,7 +601,7 @@ An active Open now filter sends `openNow=true`; an active minimum rating sends `
 
 ### Tradeoffs
 
-- Multiple selected place types cannot all be expressed through strict `includedType`; query relevance plus defensive returned-type filtering is less exact than Nearby Search's multiple type restriction.
+- The broad food-business query and defensive returned-type filtering are less exact than a single strict Google type.
 - Rectangular restriction can return candidates outside the selected circle, so local filtering may shorten a batch.
 - Text relevance does not verify that a restaurant currently serves a requested dish.
 - The current single batch remains capped at 20 candidates and is not a complete business directory.
@@ -692,7 +692,7 @@ The adapter is connected only to the explicit `POST /api/search/interpret` endpo
 
 ### Decision
 
-Each interpretation receives one immutable `SearchInterpretationContext`. It contains one timezone-aware current-time snapshot, an IANA timezone name, and FoodFind's supported place types, cuisines, common foods, ratings, sorts, radius limits, boolean filters, and descriptive-requirement kinds.
+Each interpretation receives one immutable `SearchInterpretationContext`. It contains one timezone-aware current-time snapshot, an IANA timezone name, and FoodFind's supported cuisines, common foods, ratings, sorts, radius limits, boolean filters, and descriptive-requirement kinds.
 
 The submitted `SearchCriteria` supplies the selected-location label and coordinates. The same snapshot is used throughout one interpretation; the adapter does not re-read mutable browser state or the clock.
 
@@ -945,7 +945,7 @@ Google documents accessible Advanced Markers through `gmpClickable`, titles, and
 ## Explicit map location selection
 
 - **Date:** 2026-07-26
-- **Status:** Accepted for Phase 5 Step 4
+- **Status:** Superseded by direct map location selection
 
 ### Decision
 
@@ -961,6 +961,24 @@ The selected point is initially labelled with its coordinates; FoodFind does not
 - Six decimal places keep the label readable while retaining more precision than this search experience needs.
 
 Google's map click event supplies the clicked latitude and longitude and remains separate from marker clicks: [Map events](https://developers.google.com/maps/documentation/javascript/reference/map).
+
+## Integrated location choices and direct map selection
+
+- **Date:** 2026-07-26
+- **Status:** Current
+
+### Decision
+
+Focusing or typing in the Location field opens its choice list with **Use current location** first, followed by any matching Google suggestions. Merely opening the list never requests device permission; only selecting **Use current location** does.
+
+FoodFind no longer requires a **Choose location on map** mode. Clicking an empty point on the base map directly updates the normalized location, clears stale results, and waits for **Search**. Panning, zooming, and selecting a result marker remain separate and do not change the search centre.
+
+### Rationale
+
+- Location choices belong together at the Location field instead of competing as separate controls.
+- A direct base-map click makes the visible map behave as a location input without a selection/cancel mode.
+- Explicitly selecting the current-location option preserves the privacy and permission boundary.
+- Waiting for **Search** preserves the existing request lifecycle and prevents accidental Places or Gemini calls.
 
 ## Browser geolocation boundary and accuracy
 
@@ -992,7 +1010,7 @@ The browser API requires permission, supports the selected position options, and
 
 ### Decision
 
-The Phase 5 lifecycle keeps one Google map instance for each mounted map panel. Reactive location, radius, result, result-selection, and map-selection state updates the existing instance through immutable snapshots. Panning and zooming have no application callback; only an explicit base-map click can report coordinates, and the component ignores it outside map-selection mode.
+The Phase 5 lifecycle keeps one Google map instance for each mounted map panel. Reactive location, radius, result, and result-selection state updates the existing instance through immutable snapshots. Panning and zooming have no application callback; a base-map click can report coordinates directly, while result-marker clicks remain result selection.
 
 Rendering and reloads make no Places, Place Details, Gemini, autocomplete, or device-geolocation request. Criteria edits, marker/card selection, map movement, accepted map points, and accepted device positions also make no place-search request; only **Search** does. Automated tests replace both Google Maps and browser geolocation.
 
@@ -1019,12 +1037,12 @@ FoodFind starts with no selected location and an empty Location field. Toronto C
 
 The page order is:
 
-1. Location, **Use current location**, and Radius
+1. Location—with **Use current location** inside its choice list—and Radius
 2. Map
 3. Optional smart search and manual criteria
-4. A readiness summary, Sort, and **Search places**
+4. A concise location requirement, Sort, and **Search places**
 
-The readiness summary identifies Location and Place type as required and labels other criteria optional. Location feedback stays near the location controls. The final search action remains disabled until both requirements are satisfied.
+Location is the only required input and all search criteria remain optional. The page states this in Step 3 without showing a separate required/ready card. Location feedback stays near the location controls. The final search action remains disabled until a location is selected.
 
 Device geolocation uses **Current location** as its visible label while retaining normalized coordinates internally. It updates the Location field, map centre, marker, and radius without reverse geocoding or automatically searching.
 
@@ -1032,5 +1050,65 @@ Device geolocation uses **Current location** as its visible label while retainin
 
 - An empty field prevents an assumed Toronto search and makes the user's first decision explicit.
 - Keeping the map directly beside the location step makes its purpose and updates easier to understand.
-- A visible requirement summary explains a disabled action without forcing users to infer what is missing.
+- Concise requirement text explains the disabled action without duplicating the same information in a large status card.
 - **Current location** communicates the source more clearly than raw coordinates; the coordinates remain available to the application.
+
+## Remove place type from editable search filters
+
+- **Date:** 2026-07-26
+- **Status:** Current
+
+### Decision
+
+Place type is removed from the browser controls, API filter model, domain `SearchFilters`, interpretation capabilities, and Gemini structured output. Location is the only input required before **Search places**; cuisine, common food, availability, rating, service options, smart search, and sorting remain optional.
+
+FoodFind still searches for food businesses. The Google adapter expresses that invariant with a fixed broad query covering restaurants, cafés, bars, and bakeries, and defensively removes results whose known Google types fall outside that scope. It does not send `includedType` or expose provider categories as a user filter. Results with missing type data remain visible as unconfirmed.
+
+Requests that still submit the removed `place_types` property receive HTTP `422` rather than having an ignored filter appear active.
+
+### Rationale
+
+- Choosing a broad business type did not provide useful control compared with cuisine, common-food, and smart-search criteria.
+- Removing the control makes Location the one clear prerequisite for searching.
+- Removing the field end to end prevents smart search from changing an invisible filter.
+- Keeping the food-business scope inside the provider adapter preserves FoodFind's purpose without adding user work.
+
+## Expanded cuisine allowlist
+
+- **Date:** 2026-07-26
+- **Status:** Current
+
+### Decision
+
+Mexican, Japanese, Korean, Vietnamese, and Mediterranean join the existing Chinese, Italian, Persian, Thai, and Indian cuisine options. Each is a FoodFind-owned enum value represented as natural-language relevance text in Google Text Search. Google currently lists corresponding restaurant types in its request-filterable Food and Drink taxonomy.
+
+Cuisine options remain a reviewed allowlist rather than being downloaded dynamically from Google. Adding one requires coordinated updates to the Python domain enum and provider adapter plus the TypeScript type and visible option list; API validation, Gemini capabilities, field limits, and the search lifecycle derive from those definitions without separate use-case changes.
+
+### Rationale
+
+- A reviewed list keeps the interface manageable and prevents raw provider taxonomy from becoming the product model.
+- Explicit cross-layer definitions provide compile-time and boundary validation in both Python and TypeScript.
+- The current approach is suitable for a small list. A server-provided capabilities endpoint would be more appropriate if the option catalog becomes large or changes frequently.
+
+## Expanded common-food allowlist
+
+- **Date:** 2026-07-26
+- **Status:** Current
+
+### Decision
+
+Shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, and pasta join the existing pizza, burgers, steak, ramen, and kebab options. The interface uses the standard spelling **Shawarma**.
+
+Google's current Food and Drink taxonomy contains direct or closely corresponding types for shawarma, ice cream, dessert, sushi, tacos, salad, and soup. Sweets has related confectionery, candy-store, and dessert types. Generic drinks and pasta have no exact Google place type. All Common food options are therefore sent consistently as natural-language Text Search relevance terms rather than structured provider type filters.
+
+Selecting any Common food option changes relevance only. It does not verify current menu availability, and FoodFind continues to show the agreed check-the-menu-or-call warning.
+
+### Rationale
+
+- One relevance-only behavior keeps exact provider categories and ordinary food terms from appearing more reliable than they are.
+- The expanded list supports common discovery language without adding response fields or another Google request.
+- Documenting the missing exact types prevents Pasta, Drinks, or Sweets from being mistaken for provider-verified categories.
+
+### Current provider reference
+
+- Google's Food and Drink taxonomy lists the supported structured types and does not currently include generic pasta or drinks types: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).

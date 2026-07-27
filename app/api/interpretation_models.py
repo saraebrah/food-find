@@ -9,7 +9,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -38,7 +37,6 @@ class InterpretSearchRequest(BaseModel):
 
 
 class SearchFiltersResponse(BaseModel):
-    place_types: list[PlaceType]
     cuisines: list[Cuisine]
     common_foods: list[CommonFood]
     open_now: bool
@@ -49,7 +47,6 @@ class SearchFiltersResponse(BaseModel):
     @classmethod
     def from_domain(cls, filters: SearchFilters) -> "SearchFiltersResponse":
         return cls(
-            place_types=list(filters.place_types),
             cuisines=list(filters.cuisines),
             common_foods=list(filters.common_foods),
             open_now=filters.open_now,

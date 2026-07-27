@@ -70,7 +70,6 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	expect(searchRequests).toBe(1);
 	expect(searchBodies[0]).toMatchObject({
 		filters: {
-			place_types: ['restaurant', 'cafe'],
 			cuisines: [],
 			common_foods: [],
 			open_now: false,
@@ -95,7 +94,6 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
 	expect(detailRequests).toBe(1);
 
-	await page.getByRole('checkbox', { name: 'Bakery' }).click();
 	await page.getByRole('checkbox', { name: 'Thai' }).click();
 	await page.getByRole('checkbox', { name: 'Pizza' }).click();
 	await page.getByRole('checkbox', { name: 'Open now' }).click();
@@ -109,7 +107,6 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	expect(searchRequests).toBe(2);
 	expect(searchBodies[1]).toMatchObject({
 		filters: {
-			place_types: ['restaurant', 'cafe', 'bakery'],
 			cuisines: ['thai'],
 			common_foods: ['pizza'],
 			open_now: true,
@@ -139,7 +136,6 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 					...body.search_criteria,
 					radius_meters: 2000,
 					filters: {
-						place_types: ['restaurant'],
 						cuisines: ['persian'],
 						common_foods: ['kebab'],
 						open_now: false,
@@ -188,8 +184,8 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 	expect(interpretationRequests).toBe(1);
 	expect(searchRequests).toBe(0);
 
-	await page.getByRole('checkbox', { name: 'Bakery' }).click();
 	await page.getByLabel('Available from').fill('2026-07-23T19:00');
+	await page.getByLabel('Minimum rating').selectOption('4.5');
 	await expect(page.getByText('You edited the interpreted criteria.')).toBeVisible();
 	expect(interpretationRequests).toBe(1);
 	expect(searchRequests).toBe(0);
@@ -199,11 +195,10 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 	expect(searchRequests).toBe(1);
 	expect(searchBodies[0]).toMatchObject({
 		filters: {
-			place_types: ['restaurant', 'bakery'],
 			cuisines: ['persian'],
 			common_foods: ['kebab'],
 			open_now: false,
-			minimum_rating: 4,
+			minimum_rating: 4.5,
 			dine_in: true,
 			takeout: false
 		},
@@ -287,6 +282,7 @@ test('uses the browser position only after an explicit current-location action',
 	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveValue('');
 	expect(searchRequests).toBe(0);
 
+	await page.getByRole('combobox', { name: 'Location' }).click();
 	await page.getByRole('button', { name: 'Use current location' }).click();
 
 	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveValue(
@@ -322,8 +318,8 @@ test('keeps the location-first workflow in vertical order on a mobile viewport',
 	expect(locationBox!.y).toBeLessThan(mapBox!.y);
 	expect(mapBox!.y).toBeLessThan(smartSearchBox!.y);
 	expect(smartSearchBox!.y).toBeLessThan(searchButtonBox!.y);
-	await expect(page.getByText('Location required')).toBeVisible();
-	await expect(page.getByText('Place type ready')).toBeVisible();
+	await expect(page.getByRole('list', { name: 'Search requirements' })).toHaveCount(0);
+	await expect(page.getByText(/Place type (ready|required)/)).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Search places' })).toBeDisabled();
 	expect(
 		await page.evaluate(

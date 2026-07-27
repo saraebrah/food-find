@@ -18,7 +18,6 @@ from app.domain.place import (
 from app.domain.search import (
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -228,7 +227,6 @@ async def test_search_uses_selected_location_and_adds_distance() -> None:
         location=location,
         radius_meters=2_000,
         filters=SearchFilters(
-            place_types=(PlaceType.BAR, PlaceType.BAKERY),
             cuisines=(Cuisine.ITALIAN,),
         ),
         sort=SearchSort.DISTANCE,

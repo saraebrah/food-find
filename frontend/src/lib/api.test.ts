@@ -30,7 +30,6 @@ describe('FoodFind API client', () => {
 			},
 			radius_meters: 1_000,
 			filters: {
-				place_types: ['restaurant', 'cafe'],
 				cuisines: [],
 				common_foods: [],
 				open_now: false,
@@ -60,7 +59,6 @@ describe('FoodFind API client', () => {
 				},
 				radius_meters: 1_000,
 				filters: {
-					place_types: ['restaurant', 'cafe'],
 					cuisines: [],
 					common_foods: [],
 					open_now: false,
@@ -118,7 +116,6 @@ describe('FoodFind API client', () => {
 				},
 				radius_meters: 2_000,
 				filters: {
-					place_types: ['restaurant'],
 					cuisines: ['persian'],
 					common_foods: ['kebab'],
 					open_now: false,
@@ -149,7 +146,6 @@ describe('FoodFind API client', () => {
 			},
 			radius_meters: 1_000,
 			filters: {
-				place_types: ['restaurant', 'cafe'],
 				cuisines: [],
 				common_foods: [],
 				open_now: false,
@@ -182,7 +178,6 @@ describe('FoodFind API client', () => {
 				location: { label: 'Toronto', latitude: 43.65, longitude: -79.38 },
 				radius_meters: 1_000,
 				filters: {
-					place_types: ['restaurant', 'cafe'],
 					cuisines: [],
 					common_foods: [],
 					open_now: false,

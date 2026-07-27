@@ -14,14 +14,29 @@
 		{ value: 'italian', label: 'Italian' },
 		{ value: 'persian', label: 'Persian' },
 		{ value: 'thai', label: 'Thai' },
-		{ value: 'indian', label: 'Indian' }
+		{ value: 'indian', label: 'Indian' },
+		{ value: 'mexican', label: 'Mexican' },
+		{ value: 'japanese', label: 'Japanese' },
+		{ value: 'korean', label: 'Korean' },
+		{ value: 'vietnamese', label: 'Vietnamese' },
+		{ value: 'mediterranean', label: 'Mediterranean' }
 	];
 	const commonFoodOptions: { value: CommonFood; label: string }[] = [
 		{ value: 'pizza', label: 'Pizza' },
 		{ value: 'burger', label: 'Burgers' },
 		{ value: 'steak', label: 'Steak' },
 		{ value: 'ramen', label: 'Ramen' },
-		{ value: 'kebab', label: 'Kebab' }
+		{ value: 'kebab', label: 'Kebab' },
+		{ value: 'shawarma', label: 'Shawarma' },
+		{ value: 'ice_cream', label: 'Ice cream' },
+		{ value: 'dessert', label: 'Dessert' },
+		{ value: 'sweets', label: 'Sweets' },
+		{ value: 'drinks', label: 'Drinks' },
+		{ value: 'sushi', label: 'Sushi' },
+		{ value: 'taco', label: 'Tacos' },
+		{ value: 'salad', label: 'Salad' },
+		{ value: 'soup', label: 'Soup' },
+		{ value: 'pasta', label: 'Pasta' }
 	];
 
 	let {

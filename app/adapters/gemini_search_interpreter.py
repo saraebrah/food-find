@@ -116,7 +116,6 @@ class GeminiSearchInterpreter:
             },
             "radius_meters": search_criteria.radius_meters,
             "filters": {
-                "place_types": [value.value for value in filters.place_types],
                 "cuisines": [value.value for value in filters.cuisines],
                 "common_foods": [
                     value.value for value in filters.common_foods
@@ -159,9 +158,6 @@ class GeminiSearchInterpreter:
         capabilities: SearchCapabilities,
     ) -> dict[str, object]:
         return {
-            "place_types": [
-                value.value for value in capabilities.place_types
-            ],
             "cuisines": [value.value for value in capabilities.cuisines],
             "common_foods": [
                 value.value for value in capabilities.common_foods

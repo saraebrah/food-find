@@ -14,6 +14,7 @@
 		onLocation(location: DeviceLocation): void;
 		onStatus(message: string): void;
 		provider?: DeviceLocationProvider;
+		variant?: 'default' | 'suggestion';
 	}
 
 	let {
@@ -21,7 +22,8 @@
 		onBusyChange,
 		onLocation,
 		onStatus,
-		provider
+		provider,
+		variant = 'default'
 	}: Props = $props();
 	let locating = $state(false);
 	let requestNumber = 0;
@@ -71,6 +73,11 @@
 	}
 </script>
 
-<button type="button" disabled={disabled || locating} onclick={locate}>
+<button
+	type="button"
+	class:suggestion-button={variant === 'suggestion'}
+	disabled={disabled || locating}
+	onclick={locate}
+>
 	{locating ? 'Finding location…' : 'Use current location'}
 </button>

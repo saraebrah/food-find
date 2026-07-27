@@ -9,7 +9,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -35,7 +34,6 @@ def make_search_criteria() -> SearchCriteria:
         ),
         radius_meters=2_000,
         filters=SearchFilters(
-            place_types=(PlaceType.RESTAURANT,),
             cuisines=(Cuisine.PERSIAN,),
             common_foods=(CommonFood.KEBAB,),
             minimum_rating=MinimumRating.FOUR,

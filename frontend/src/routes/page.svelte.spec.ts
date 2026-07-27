@@ -67,7 +67,6 @@ const interpretation: SearchInterpretation = {
 		},
 		radius_meters: 2_000,
 		filters: {
-			place_types: ['restaurant'],
 			cuisines: ['persian'],
 			common_foods: ['kebab'],
 			open_now: false,
@@ -123,6 +122,19 @@ describe('FoodFind page request lifecycle', () => {
 		});
 	});
 
+	it('offers current location when the empty Location field is opened', async () => {
+		render(FoodFindPage);
+
+		await expect
+			.element(page.getByRole('button', { name: 'Use current location' }))
+			.not.toBeInTheDocument();
+		await page.getByRole('combobox', { name: 'Location' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Use current location' }))
+			.toBeVisible();
+		expect(deviceLocationProvider.getCurrentLocation).not.toHaveBeenCalled();
+	});
+
 	it('applies one interpretation and keeps later edits local', async () => {
 		render(FoodFindPage);
 		await chooseTorontoLocation();
@@ -135,8 +147,9 @@ describe('FoodFind page request lifecycle', () => {
 
 		expect(interpretSearch).toHaveBeenCalledTimes(1);
 		expect(searchPlaces).not.toHaveBeenCalled();
-		await expect.element(page.getByRole('checkbox', { name: 'Restaurant' })).toBeChecked();
-		await expect.element(page.getByRole('checkbox', { name: 'Café' })).not.toBeChecked();
+		await expect
+			.element(page.getByRole('group', { name: 'Place type' }))
+			.not.toBeInTheDocument();
 		await expect.element(page.getByRole('checkbox', { name: 'Persian' })).toBeChecked();
 		await expect.element(page.getByRole('checkbox', { name: 'Kebab' })).toBeChecked();
 		expect(
@@ -173,7 +186,6 @@ describe('FoodFind page request lifecycle', () => {
 		await expect.element(page.getByLabelText('Available until')).toBeVisible();
 
 		await page.getByLabelText('Available from').fill('2026-07-23T19:00');
-		await page.getByRole('checkbox', { name: 'Bakery' }).click();
 		await page.getByLabelText('Minimum rating').selectOptions('4.5');
 		expect(interpretSearch).toHaveBeenCalledTimes(1);
 		expect(searchPlaces).not.toHaveBeenCalled();
@@ -187,7 +199,6 @@ describe('FoodFind page request lifecycle', () => {
 		expect(searchPlaces).toHaveBeenCalledWith(
 			expect.objectContaining({
 				filters: expect.objectContaining({
-					place_types: ['restaurant', 'bakery'],
 					minimum_rating: 4.5
 				}),
 				descriptive_requirements: [
@@ -218,8 +229,9 @@ describe('FoodFind page request lifecycle', () => {
 				)
 			)
 			.toBeVisible();
-		await expect.element(page.getByRole('checkbox', { name: 'Restaurant' })).toBeChecked();
-		await expect.element(page.getByRole('checkbox', { name: 'Café' })).toBeChecked();
+		await expect
+			.element(page.getByRole('group', { name: 'Place type' }))
+			.not.toBeInTheDocument();
 		expect(interpretSearch).toHaveBeenCalledTimes(1);
 		expect(searchPlaces).not.toHaveBeenCalled();
 	});
@@ -278,8 +290,12 @@ describe('FoodFind page request lifecycle', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Search places' }))
 			.toBeDisabled();
-		await expect.element(page.getByText('Location required')).toBeVisible();
-		await expect.element(page.getByText('Place type ready')).toBeVisible();
+		await expect
+			.element(page.getByRole('list', { name: 'Search requirements' }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByText(/Place type (ready|required)/))
+			.not.toBeInTheDocument();
 		const locationInput = await page
 			.getByRole('combobox', { name: 'Location' })
 			.element();
@@ -311,7 +327,7 @@ describe('FoodFind page request lifecycle', () => {
 				radiusMeters: 1_000,
 				places: [],
 				selectedPlaceKey: null,
-				locationSelectionEnabled: false,
+				locationSelectionEnabled: true,
 				searchAreaSelected: false
 			})
 		);
@@ -327,7 +343,7 @@ describe('FoodFind page request lifecycle', () => {
 				radiusMeters: 2_000,
 				places: [],
 				selectedPlaceKey: null,
-				locationSelectionEnabled: false,
+				locationSelectionEnabled: true,
 				searchAreaSelected: false
 			})
 		);
@@ -338,14 +354,13 @@ describe('FoodFind page request lifecycle', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Search places' }))
 			.toBeEnabled();
-		await expect.element(page.getByText('Location ready')).toBeVisible();
 		await vi.waitFor(() =>
 			expect(mapRenderer.render).toHaveBeenLastCalledWith({
 				center: { latitude: 43.7, longitude: -79.4 },
 				radiusMeters: 2_000,
 				places: [],
 				selectedPlaceKey: null,
-				locationSelectionEnabled: false,
+				locationSelectionEnabled: true,
 				searchAreaSelected: true
 			})
 		);
@@ -359,7 +374,7 @@ describe('FoodFind page request lifecycle', () => {
 			radiusMeters: 2_000,
 			places: [],
 			selectedPlaceKey: null,
-			locationSelectionEnabled: false,
+			locationSelectionEnabled: true,
 			searchAreaSelected: false
 		});
 		expect(searchPlaces).not.toHaveBeenCalled();
@@ -444,7 +459,7 @@ describe('FoodFind page request lifecycle', () => {
 					}
 				],
 				selectedPlaceKey: null,
-				locationSelectionEnabled: false,
+				locationSelectionEnabled: true,
 				searchAreaSelected: true
 			})
 		);
@@ -458,7 +473,6 @@ describe('FoodFind page request lifecycle', () => {
 				},
 				radius_meters: 1000,
 				filters: {
-					place_types: ['restaurant', 'cafe'],
 					cuisines: [],
 					common_foods: [],
 					open_now: false,
@@ -473,7 +487,7 @@ describe('FoodFind page request lifecycle', () => {
 			expect.any(AbortSignal)
 		);
 
-		await page.getByRole('checkbox', { name: 'Bakery' }).click();
+		await page.getByRole('checkbox', { name: 'Mexican' }).click();
 		await expect
 			.element(page.getByRole('heading', { name: 'Test Kitchen' }))
 			.not.toBeInTheDocument();
@@ -510,7 +524,6 @@ describe('FoodFind page request lifecycle', () => {
 		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
 
 		const mountOptions = mapRenderer.mount.mock.calls[0][1];
-		await page.getByRole('button', { name: 'Choose location on map' }).click();
 		mountOptions.onLocationSelect({
 			latitude: 43.65012349,
 			longitude: -79.39098751
@@ -533,7 +546,7 @@ describe('FoodFind page request lifecycle', () => {
 				radiusMeters: 1_000,
 				places: [],
 				selectedPlaceKey: null,
-				locationSelectionEnabled: false,
+				locationSelectionEnabled: true,
 				searchAreaSelected: true
 			})
 		);
@@ -574,6 +587,7 @@ describe('FoodFind page request lifecycle', () => {
 		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
 		expect(deviceLocationProvider.getCurrentLocation).not.toHaveBeenCalled();
 
+		await page.getByRole('combobox', { name: 'Location' }).click();
 		await page.getByRole('button', { name: 'Use current location' }).click();
 		await expect
 			.element(page.getByRole('button', { name: 'Finding location…' }))
@@ -627,6 +641,7 @@ describe('FoodFind page request lifecycle', () => {
 	it('accepts a device position within the selected search radius without searching', async () => {
 		render(FoodFindPage);
 
+		await page.getByRole('combobox', { name: 'Location' }).click();
 		await page.getByRole('button', { name: 'Use current location' }).click();
 
 		await expect
@@ -651,41 +666,11 @@ describe('FoodFind page request lifecycle', () => {
 		expect(autocompleteLocations).not.toHaveBeenCalled();
 	});
 
-	it('changes place types without searching and snapshots the chosen types', async () => {
-		render(FoodFindPage);
-		await chooseTorontoLocation();
-
-		await expect.element(page.getByRole('checkbox', { name: 'Restaurant' })).toBeChecked();
-		await expect.element(page.getByRole('checkbox', { name: 'Café' })).toBeChecked();
-		await expect.element(page.getByRole('checkbox', { name: 'Bar' })).not.toBeChecked();
-		await page.getByRole('checkbox', { name: 'Bar' }).click();
-		await page.getByRole('checkbox', { name: 'Restaurant' }).click();
-		await page.getByRole('checkbox', { name: 'Café' }).click();
-		expect(searchPlaces).not.toHaveBeenCalled();
-
-		await page.getByRole('button', { name: 'Search places' }).click();
-		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
-		expect(searchPlaces).toHaveBeenCalledWith(
-			expect.objectContaining({
-				filters: {
-					place_types: ['bar'],
-					cuisines: [],
-					common_foods: [],
-					open_now: false,
-					minimum_rating: null,
-					dine_in: false,
-					takeout: false
-				}
-			}),
-			expect.any(AbortSignal)
-		);
-	});
-
 	it('applies higher-tier filters and rating sorting only on explicit search', async () => {
 		render(FoodFindPage);
 		await chooseTorontoLocation();
 
-		await page.getByRole('checkbox', { name: 'Italian' }).click();
+		await page.getByRole('checkbox', { name: 'Mexican' }).click();
 		await page.getByRole('checkbox', { name: 'Pizza' }).click();
 		await expect.element(page.getByRole('checkbox', { name: 'Pizza' })).toBeEnabled();
 		await page.getByRole('checkbox', { name: 'Open now' }).click();
@@ -699,8 +684,7 @@ describe('FoodFind page request lifecycle', () => {
 		expect(searchPlaces).toHaveBeenCalledWith(
 			expect.objectContaining({
 				filters: {
-					place_types: ['restaurant', 'cafe'],
-					cuisines: ['italian'],
+					cuisines: ['mexican'],
 					common_foods: ['pizza'],
 					open_now: true,
 					minimum_rating: 4.5,
@@ -713,14 +697,42 @@ describe('FoodFind page request lifecycle', () => {
 		);
 	});
 
-	it('requires at least one place type before searching', async () => {
+	it('offers the expanded cuisine choices without searching', async () => {
 		render(FoodFindPage);
-		await chooseTorontoLocation();
 
-		await page.getByRole('checkbox', { name: 'Restaurant' }).click();
-		await page.getByRole('checkbox', { name: 'Café' }).click();
-		await expect.element(page.getByRole('button', { name: 'Search places' })).toBeDisabled();
-		await expect.element(page.getByText('Place type required')).toBeVisible();
+		for (const cuisine of [
+			'Mexican',
+			'Japanese',
+			'Korean',
+			'Vietnamese',
+			'Mediterranean'
+		]) {
+			await expect
+				.element(page.getByRole('checkbox', { name: cuisine }))
+				.toBeVisible();
+		}
+		expect(searchPlaces).not.toHaveBeenCalled();
+	});
+
+	it('offers the expanded common-food choices without searching', async () => {
+		render(FoodFindPage);
+
+		for (const food of [
+			'Shawarma',
+			'Ice cream',
+			'Dessert',
+			'Sweets',
+			'Drinks',
+			'Sushi',
+			'Tacos',
+			'Salad',
+			'Soup',
+			'Pasta'
+		]) {
+			await expect
+				.element(page.getByRole('checkbox', { name: food }))
+				.toBeVisible();
+		}
 		expect(searchPlaces).not.toHaveBeenCalled();
 	});
 

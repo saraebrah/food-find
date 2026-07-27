@@ -2,21 +2,36 @@
 	import { onDestroy, untrack } from 'svelte';
 
 	import { ApiError, autocompleteLocations, resolveLocation } from '$lib/api';
+	import type { DeviceLocation } from '$lib/geolocation/geolocation-provider';
 	import { looksLikeCoordinatePair, parseCoordinates } from '$lib/search';
 	import type { LocationSuggestion, SelectedLocation } from '$lib/types';
+	import CurrentLocationButton from './CurrentLocationButton.svelte';
 
 	interface Props {
 		disabled: boolean;
 		selectedLocation: SelectedLocation | null;
 		onLocationChange: (location: SelectedLocation | null) => void;
+		onBusyChange: (busy: boolean) => void;
+		onDeviceLocation: (location: DeviceLocation) => void;
 		onStatus: (message: string) => void;
 		onClearResults: () => void;
 	}
 
-	let { disabled, selectedLocation, onLocationChange, onStatus, onClearResults }: Props = $props();
+	let {
+		disabled,
+		selectedLocation,
+		onLocationChange,
+		onBusyChange,
+		onDeviceLocation,
+		onStatus,
+		onClearResults
+	}: Props = $props();
 	let inputValue = $state(untrack(() => selectedLocation?.label ?? ''));
 	let suggestions = $state<LocationSuggestion[]>([]);
+	let menuOpen = $state(false);
+	let deviceLocating = $state(false);
 	let resolving = $state(false);
+	let controlElement: HTMLDivElement;
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let controller: AbortController | null = null;
 	let requestNumber = 0;
@@ -51,6 +66,7 @@
 		resetPendingRequest();
 		suggestions = [];
 		inputValue = selectedLocation.label;
+		menuOpen = false;
 	});
 
 	$effect(() => {
@@ -71,6 +87,7 @@
 
 	function handleInput(event: Event) {
 		inputValue = (event.currentTarget as HTMLInputElement).value;
+		menuOpen = true;
 		suggestions = [];
 		resetPendingRequest();
 		onClearResults();
@@ -143,9 +160,26 @@
 			controller = null;
 		}
 	}
+
+	function handleFocusOut(event: FocusEvent) {
+		if (deviceLocating) return;
+		const nextTarget = event.relatedTarget;
+		if (nextTarget instanceof Node && controlElement.contains(nextTarget)) return;
+		menuOpen = false;
+	}
+
+	function handleDeviceBusyChange(busy: boolean) {
+		deviceLocating = busy;
+		if (busy) menuOpen = true;
+		onBusyChange(busy);
+	}
 </script>
 
-<div class="location-control">
+<div
+	class="location-control"
+	bind:this={controlElement}
+	onfocusout={handleFocusOut}
+>
 	<label for="location-input">Location</label>
 	<input
 		id="location-input"
@@ -157,29 +191,39 @@
 		aria-describedby="location-help"
 		aria-autocomplete="list"
 		aria-controls="location-suggestions"
-		aria-expanded={suggestions.length > 0}
+		aria-expanded={menuOpen}
 		role="combobox"
 		value={inputValue}
 		disabled={disabled || resolving}
+		onfocus={() => (menuOpen = true)}
 		oninput={handleInput}
 	/>
-	{#if suggestions.length > 0}
-		<div class="suggestions-panel">
-			<ul id="location-suggestions" class="location-suggestions" role="listbox">
-				{#each suggestions as suggestion (suggestion.provider_place_id)}
-					<li role="option" aria-selected="false">
-						<button
-							type="button"
-							class="suggestion-button"
-							disabled={disabled || resolving}
-							onclick={() => selectSuggestion(suggestion)}
-						>
-							{suggestion.label}
-						</button>
-					</li>
-				{/each}
-			</ul>
+	<div class="suggestions-panel" hidden={!menuOpen && !deviceLocating}>
+		<ul id="location-suggestions" class="location-suggestions" role="listbox">
+			<li role="option" aria-selected="false">
+				<CurrentLocationButton
+					{disabled}
+					onBusyChange={handleDeviceBusyChange}
+					onLocation={onDeviceLocation}
+					{onStatus}
+					variant="suggestion"
+				/>
+			</li>
+			{#each suggestions as suggestion (suggestion.provider_place_id)}
+				<li role="option" aria-selected="false">
+					<button
+						type="button"
+						class="suggestion-button"
+						disabled={disabled || resolving}
+						onclick={() => selectSuggestion(suggestion)}
+					>
+						{suggestion.label}
+					</button>
+				</li>
+			{/each}
+		</ul>
+		{#if suggestions.length > 0}
 			<p class="google-maps-attribution" translate="no">Google Maps</p>
-		</div>
-	{/if}
+		{/if}
+	</div>
 </div>

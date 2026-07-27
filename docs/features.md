@@ -8,7 +8,7 @@ This file breaks the product into individual features, including expected behavi
 
 - `POST /api/places/search` accepts one normalized selected location containing a label, latitude, and longitude.
 - Users choose a radius of 500 m, 1 km, 2 km, or 5 km; 1 km is the default.
-- Users can search for any combination of the supported place types: restaurant, café, bar, and bakery. Restaurant and café are selected by default.
+- FoodFind searches broadly for nearby food businesses; users do not need to choose a business type.
 - Users can independently choose supported cuisines and common foods, including both groups in one search.
 - Users can optionally keep only places that Google explicitly reports open at search time.
 - Users can preserve Google's recommended order, order results by distance, or order Google's candidate set by rating.
@@ -39,10 +39,10 @@ These states remain explicit and recoverable in local Svelte component state wit
 
 ### Current behavior
 
-- Step 1 presents the empty Location field, **Use current location**, and Radius before any smart-search or filter controls.
+- Step 1 presents the empty Location field and Radius before any smart-search or filter controls. Focusing the field reveals **Use current location** as its first option.
 - The map immediately follows the location controls. Until a location is selected, it shows a neutral Toronto starting view without a search-centre marker or radius circle.
-- Step 2 contains optional smart search followed by visible manual controls. Place type is explicitly identified as the only required criterion in this step.
-- Step 3 shows separate readiness states for Location and Place type, the optional sort control, and the final **Search places** action.
+- Step 2 contains optional smart search followed by visible manual controls.
+- Step 3 states that Location is required, then shows the optional sort control and final **Search places** action without a separate readiness card.
 - Location feedback appears beside the location controls; interpretation, filter, and search feedback appears beside the final action.
 - The same hierarchy stacks vertically on narrow screens.
 
@@ -50,8 +50,8 @@ These states remain explicit and recoverable in local Svelte component state wit
 
 - Location is the first interactive input, and its initial value is empty.
 - The DOM and visual order is Location and Radius, Map, Smart search and filters, then **Search places**.
-- **Search places** remains disabled until a location and at least one place type are ready.
-- Readiness text explains both missing requirements rather than relying only on a disabled button.
+- **Search places** remains disabled until a location is ready.
+- The Location step and Step 3 text explain the requirement; no separate required/ready card is shown.
 
 ## Search feedback and recovery
 
@@ -118,11 +118,12 @@ Map selection and device current location are available in Phase 5.
 - Result markers have place-name titles and keyboard-accessible click behavior. The selected marker is visually emphasized.
 - Selecting a marker or card makes no search or detail request. **View details** remains the only action that loads place details.
 - Clearing stale results also clears the selected result.
-- **Choose location on map** starts an explicit one-point selection mode. Normal map use does not change the search centre.
+- Clicking an empty point on the map selects that point as the search centre without a separate mode or button.
 - A chosen point becomes the existing `SelectedLocation` shape with coordinates rounded to six decimal places and a coordinate label shown in the Location field.
 - Choosing a map point clears stale results, recentres the search area, and waits for **Search**. It does not reverse-geocode the point or call Places, Place Details, or Gemini.
-- Panning, zooming, cancelling map selection, and clicking a result marker do not change the search location.
-- **Use current location** makes one browser geolocation request only after the user selects it. Rendering, reloading, and interpreting **near me** never request device permission.
+- Panning, zooming, and clicking a result marker do not change the search location.
+- Focusing or typing in the Location field reveals **Use current location** alongside any Google suggestions. Opening this list does not request browser permission.
+- **Use current location** makes one browser geolocation request only after the user selects the option. Rendering, reloading, opening the Location field, and interpreting **near me** never request device permission.
 - While that one-shot request is pending, other criteria and search actions are disabled so an old-location search cannot race the new position.
 - A valid device position becomes the same normalized `SelectedLocation` used by map selection, with the visible label **Current location**. It clears stale results, recentres the map and search-centre marker, and waits for **Search places** without reverse geocoding or calling Google Places.
 - FoodFind requests a fresh high-accuracy position with a 10-second timeout. If the browser-reported accuracy is wider than the selected search radius, FoodFind accepts the point but warns the user to adjust it manually or on the map if needed.
@@ -141,10 +142,10 @@ Map selection and device current location are available in Phase 5.
 - Marker and card selection stay synchronized through their shared identity.
 - Selection alone does not refit the viewport or call FoodFind's search or detail endpoints.
 - Result markers and card selection controls can be operated without a mouse.
-- A base-map click changes the location only while explicit map-selection mode is active.
+- A base-map click changes the location directly; result-marker clicks remain result selection only.
 - The map-selected coordinate label appears in the existing Location field, old results disappear, and only a later **Search** submits the new location.
 - Panning and zooming alone never mutate the selected location or start a request.
-- Device permission is requested only from an explicit **Use current location** action.
+- Device permission is requested only after the user explicitly selects **Use current location** from the Location field.
 - A successful device position updates the existing Location field and map but makes no Places, Place Details, or Gemini request.
 - Search and criteria actions remain unavailable until the one-shot device request succeeds or fails.
 - Poor reported accuracy is visible, and every failure state points back to manual or map location selection.
@@ -187,25 +188,24 @@ Map selection and device current location are available in Phase 5.
 ### Current behavior
 
 - Every Svelte search snapshot contains `filters` and `sort` alongside location and radius.
-- The filter state contains ordered `place_types`, `cuisines`, and `common_foods` lists. Restaurant and café are the default place types; both specialty lists default to empty.
+- The filter state contains ordered `cuisines` and `common_foods` lists; both default to empty.
 - The `open_now` filter defaults to false.
 - The `minimum_rating` filter defaults to no minimum and offers 3.0+, 3.5+, 4.0+, and 4.5+.
 - The `dine_in` and `takeout` service filters are independent and default to false.
 - Users can choose Google's recommended order (`provider_default`), ascending distance (`distance`), or highest rating first (`rating`).
 - FastAPI converts both values into FoodFind-owned `SearchFilters` and `SearchSort` domain values before the application use case runs.
 - Omitting the fields retains the same defaults for older callers.
-- The place-type control supports restaurant, café, bar, and bakery as independent checkboxes. At least one must be selected before searching.
-- The cuisine control supports Chinese, Italian, Persian, Thai, and Indian. Multiple selections match any selected cuisine.
-- The common-food control supports pizza, burgers, steak, ramen, and kebab. A match represents Google text relevance and does not confirm that a specific item is currently on the menu.
+- The cuisine control supports Chinese, Italian, Persian, Thai, Indian, Mexican, Japanese, Korean, Vietnamese, and Mediterranean. Multiple selections match any selected cuisine.
+- The common-food control supports pizza, burgers, steak, ramen, kebab, shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, and pasta. A match represents Google text relevance and does not confirm that a specific item is currently on the menu.
 - Text relevance can include weak common-food matches. FoodFind does not currently remove a result merely because the requested food is not evident from its name or provider category; improving this safely is deferred to the roadmap.
 - Cuisine and common-food selections can be active together. The Google adapter includes both concepts in the same deterministic Text Search query.
 - Changing any filter or the sort clears stale results and displays guidance but does not search automatically.
-- The Google adapter builds one `textQuery` from the selected place types, cuisines, and common foods. The query contains no location label because location is supplied separately as a geographic restriction.
-- When exactly one place type is selected, the adapter also sets Text Search `includedType` and `strictTypeFiltering=true`. Text Search accepts only one strict included type.
-- When several place types are selected, the adapter includes them in `textQuery`, requests `places.types`, and removes a returned place when its known Google types match none of the selected types. A place with missing type data remains visible as unconfirmed rather than being inferred.
+- The Google adapter begins every `textQuery` with a fixed broad food-business scope covering restaurants, cafés, bars, and bakeries, then adds selected cuisines and common foods. The query contains no location label because location is supplied separately as a geographic restriction.
+- Place type is not part of the browser, API, domain-filter, or LLM-output contract. The adapter does not send a strict `includedType`.
+- The adapter removes a returned place when its known Google types do not match the fixed food-business scope. A place with missing type data remains visible as unconfirmed rather than being inferred.
 - Distance sorting maps to Text Search's `DISTANCE` rank preference. Recommended ordering omits that parameter and retains Google's relevance ranking.
 - The adapter calculates a rectangular Text Search restriction enclosing the selected circle. The application calculates every returned place's exact straight-line distance and removes places outside the selected radius.
-- Place type, cuisine, common-food, and distance controls do not add higher-tier response fields. The base Text Search field mask remains Pro.
+- Cuisine, common-food, and distance controls do not add higher-tier response fields. The base Text Search field mask remains Pro.
 - When Open now is active, the adapter sends `openNow=true` and adds only `places.currentOpeningHours` to the search field mask. This makes that Text Search request Enterprise without changing the default request.
 - FoodFind also requires the normalized `open_now` value to be explicitly true; false and missing values do not satisfy the active filter.
 - When a minimum rating is selected, the adapter sends Text Search `minRating` and adds `places.rating` to the conditional Enterprise field mask. Rating sorting requests the same response field without sending a minimum.
@@ -213,11 +213,11 @@ Map selection and device current location are available in Phase 5.
 - Rating sorting is applied highest-first after Google returns its candidates. Missing ratings remain available when no minimum is active and appear last; equal ratings preserve Google's relative order.
 - When Dine-in is selected, the Google adapter adds only `places.dineIn`; when Takeout is selected, it adds only `places.takeout`. Either field makes that one search Enterprise + Atmosphere. Inactive service filters add neither field.
 - Text Search has no request parameter for Dine-in or Takeout. FoodFind therefore retains only places whose normalized value is explicitly true for every selected service; false and missing values do not satisfy the filter.
-- The current implementation requests one Text Search batch of at most 20 candidates. Exact radius, known place-type, closure, Dine-in, Takeout, and defensive Open now or rating filtering may shorten the visible list. Continuation batches are deferred.
+- The current implementation requests one Text Search batch of at most 20 candidates. Exact radius, known non-food type, closure, Dine-in, Takeout, and defensive Open now or rating filtering may shorten the visible list. Continuation batches are deferred.
 - A retained result displays an **Open now** tag using the value already returned by the search. Rendering the tag makes no extra request.
 - A returned summary rating is labelled as a Google Maps rating and displayed without an extra detail request.
-- Food truck and pasta are not shown as current filters because their FoodFind behavior and Text Search quality have not been defined and verified.
-- Unknown filter properties, unsupported values, duplicate selections, an empty place-type list, and unsupported sort values are rejected with HTTP `422`; they are not silently ignored.
+- Food truck is not shown as a current filter because its FoodFind behavior and Text Search quality have not been defined and verified.
+- Unknown filter properties—including the removed `place_types` property—unsupported values, duplicate selections, and unsupported sort values are rejected with HTTP `422`; they are not silently ignored.
 
 ### Acceptance criteria
 
@@ -226,12 +226,11 @@ Map selection and device current location are available in Phase 5.
 - Rendering, editing criteria, or constructing default state makes no provider request.
 - Unsupported criteria cannot appear to be active while having no effect.
 - Adding a later filter extends the existing filter object rather than adding an unrelated top-level request parameter.
-- The initial browser state selects restaurant and café and makes no request.
 - Selecting or clearing a checkbox makes no provider request and removes results from the previous criteria.
 - One explicit search sends the complete normalized criteria and produces one Text Search request.
 - Multiple cuisines or multiple common-food choices use OR behavior within their own group.
 - Cuisine and common-food choices can appear together in the browser, API, and domain state and are both represented in `textQuery`.
-- One selected place type uses strict Text Search type filtering; multiple place types use query text plus defensive filtering of known returned types.
+- Every search uses the same broad food-business query scope; known non-food results are removed defensively.
 - Every returned result is inside the selected circular radius after application filtering.
 - Choosing distance changes provider ranking without making an extra request or adding a routing request.
 - The Google response field mask is unchanged when any Pro filter or sort changes.

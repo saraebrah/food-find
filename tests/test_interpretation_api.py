@@ -8,7 +8,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -52,7 +51,6 @@ class RecordingInterpreter:
                 location=search_criteria.location,
                 radius_meters=2_000,
                 filters=SearchFilters(
-                    place_types=(PlaceType.RESTAURANT,),
                     cuisines=(Cuisine.PERSIAN,),
                     common_foods=(CommonFood.KEBAB,),
                     minimum_rating=MinimumRating.FOUR,
@@ -119,7 +117,6 @@ def request_payload() -> dict[str, object]:
             },
             "radius_meters": 1_000,
             "filters": {
-                "place_types": ["restaurant", "cafe"],
                 "cuisines": [],
                 "common_foods": [],
                 "open_now": False,
@@ -160,7 +157,6 @@ def test_explicit_interpretation_returns_editable_intent_once(
             },
             "radius_meters": 2_000.0,
             "filters": {
-                "place_types": ["restaurant"],
                 "cuisines": ["persian"],
                 "common_foods": ["kebab"],
                 "open_now": False,

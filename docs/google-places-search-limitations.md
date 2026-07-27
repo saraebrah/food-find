@@ -4,7 +4,7 @@ This is a numbered, living list of Google Places limitations that affect FoodFin
 
 FoodFind currently uses Text Search for food-business discovery. The Nearby Search limitations remain documented because they explain why FoodFind migrated away from that endpoint and may matter if the provider strategy is revisited.
 
-The information was last reviewed on 2026-07-25. Google's API behavior, fields, billing tiers, and usage terms can change, so verify the linked documentation before implementing related work.
+The information was last reviewed on 2026-07-26. Google's API behavior, fields, billing tiers, and usage terms can change, so verify the linked documentation before implementing related work.
 
 ## 1. Nearby Search returns at most 20 results
 
@@ -46,10 +46,10 @@ Google selects at most 20 candidates before this happens. For example, it might 
 
 Text Search's structured `includedType` parameter accepts one string, not a list. FoodFind can strictly request restaurants or cafés in one call, but cannot strictly request restaurants, cafés, bars, and bakeries together through this parameter.
 
-FoodFind now handles this as follows:
+FoodFind does not expose place type as a filter. It now handles this limitation as follows:
 
-- One selected type is sent through `includedType` with strict filtering.
-- Several selected types are mentioned in `textQuery`. FoodFind requests Google's returned `types` and removes a place when its known types match none of the selections.
+- Every search uses one fixed broad `textQuery` covering restaurants, cafés, bars, and bakeries rather than sending `includedType`.
+- FoodFind requests Google's returned `types` and removes a place when its known types fall outside that food-business scope.
 - Missing returned type data remains unconfirmed rather than being guessed.
 
 This keeps one request, but Google still chooses the candidate set using text relevance rather than several strict included types.
@@ -78,7 +78,7 @@ Reference: [Text Search pagination](https://developers.google.com/maps/documenta
 
 A Google business category such as `kebab_shop` does not prove that a specific dish is currently available. Similarly, a Text Search match for `Persian restaurant serving kebab` is relevant evidence, not verified menu data.
 
-Some useful concepts also lack a suitable structured Nearby Search type. FoodFind currently defers generic food trucks and pasta rather than mapping them to inaccurate substitutes. Verified dish availability will require restaurant-owned, licensed, or directly submitted menu data.
+Some useful concepts also lack a suitable structured Google place type. FoodFind defers generic food trucks. Pasta, generic drinks, and sweets are available only as Text Search relevance terms, not structured types or verified menu data. Verified dish availability will require restaurant-owned, licensed, or directly submitted menu data.
 
 ## 8. Data can be missing, stale, or costly to request
 

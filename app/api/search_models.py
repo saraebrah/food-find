@@ -10,11 +10,9 @@ from pydantic import (
 from app.domain.location import SelectedLocation
 from app.domain.place import Coordinates
 from app.domain.search import (
-    DEFAULT_PLACE_TYPES,
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -50,11 +48,6 @@ class SelectedLocationRequest(BaseModel):
 class SearchFiltersRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    place_types: tuple[PlaceType, ...] = Field(
-        default=DEFAULT_PLACE_TYPES,
-        min_length=1,
-        max_length=len(PlaceType),
-    )
     cuisines: tuple[Cuisine, ...] = Field(default=(), max_length=len(Cuisine))
     common_foods: tuple[CommonFood, ...] = Field(
         default=(),
@@ -64,16 +57,6 @@ class SearchFiltersRequest(BaseModel):
     minimum_rating: MinimumRating | None = None
     dine_in: bool = False
     takeout: bool = False
-
-    @field_validator("place_types")
-    @classmethod
-    def place_types_must_be_unique(
-        cls,
-        place_types: tuple[PlaceType, ...],
-    ) -> tuple[PlaceType, ...]:
-        if len(set(place_types)) != len(place_types):
-            raise ValueError("Place types must be unique")
-        return place_types
 
     @field_validator("cuisines")
     @classmethod
@@ -97,7 +80,6 @@ class SearchFiltersRequest(BaseModel):
 
     def to_domain(self) -> SearchFilters:
         return SearchFilters(
-            place_types=self.place_types,
             cuisines=self.cuisines,
             common_foods=self.common_foods,
             open_now=self.open_now,

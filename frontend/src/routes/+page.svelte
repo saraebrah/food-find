@@ -3,14 +3,12 @@
 	import { onDestroy } from 'svelte';
 
 	import { ApiError, interpretSearch, searchPlaces } from '$lib/api';
-	import CurrentLocationButton from '$lib/components/CurrentLocationButton.svelte';
 	import InterpretationSummary from '$lib/components/InterpretationSummary.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import MapPanel from '$lib/components/MapPanel.svelte';
 	import MinimumRatingFilter from '$lib/components/MinimumRatingFilter.svelte';
 	import OpenNowFilter from '$lib/components/OpenNowFilter.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
-	import PlaceTypeFilter from '$lib/components/PlaceTypeFilter.svelte';
 	import ServiceFilters from '$lib/components/ServiceFilters.svelte';
 	import SpecialtyFilters from '$lib/components/SpecialtyFilters.svelte';
 	import type { DeviceLocation } from '$lib/geolocation/geolocation-provider';
@@ -26,7 +24,6 @@
 		MinimumRating,
 		Place,
 		PlaceSearchRequest,
-		PlaceType,
 		SearchCriteria,
 		SearchFilters,
 		SearchInterpretation,
@@ -46,7 +43,6 @@
 	});
 	let radiusMeters = $state(1000);
 	let filters = $state<SearchFilters>({
-		place_types: ['restaurant', 'cafe'],
 		cuisines: [],
 		common_foods: [],
 		open_now: false,
@@ -161,16 +157,6 @@
 		locationStatus = 'Radius updated. Select Search places to refresh the results.';
 	}
 
-	function handlePlaceTypesChange(placeTypes: PlaceType[]) {
-		filters = { ...filters, place_types: placeTypes };
-		clearResults();
-		markInterpretationEdited();
-		status =
-			placeTypes.length > 0
-				? 'Place types updated. Select Search places to refresh the results.'
-				: 'Choose at least one place type.';
-	}
-
 	function handleCuisinesChange(cuisines: Cuisine[]) {
 		filters = { ...filters, cuisines };
 		clearResults();
@@ -225,16 +211,10 @@
 			status = 'Choose a suggested location or enter valid coordinates first.';
 			return null;
 		}
-		if (filters.place_types.length === 0) {
-			status = 'Choose at least one place type.';
-			return null;
-		}
-
 		return {
 			location: { ...selectedLocation },
 			radius_meters: radiusMeters,
 			filters: {
-				place_types: [...filters.place_types],
 				cuisines: [...filters.cuisines],
 				common_foods: [...filters.common_foods],
 				open_now: filters.open_now,
@@ -249,7 +229,6 @@
 	function applyInterpretation(result: SearchInterpretation) {
 		radiusMeters = result.search_criteria.radius_meters;
 		filters = {
-			place_types: [...result.search_criteria.filters.place_types],
 			cuisines: [...result.search_criteria.filters.cuisines],
 			common_foods: [...result.search_criteria.filters.common_foods],
 			open_now: result.search_criteria.filters.open_now,
@@ -404,14 +383,10 @@
 				disabled={busy}
 				{selectedLocation}
 				onLocationChange={handleLocationChange}
+				onBusyChange={(value) => (locating = value)}
+				onDeviceLocation={handleCurrentLocation}
 				onStatus={(message) => (locationStatus = message)}
 				onClearResults={clearResults}
-			/>
-			<CurrentLocationButton
-				disabled={searching || interpreting}
-				onBusyChange={(value) => (locating = value)}
-				onLocation={handleCurrentLocation}
-				onStatus={(message) => (locationStatus = message)}
 			/>
 			<div class="radius-control">
 				<label for="radius-select">Radius</label>
@@ -452,8 +427,7 @@
 			<p class="step-label">Step 2 · Choose what to find</p>
 			<h2 id="criteria-heading">Describe or refine your search</h2>
 			<p>
-				Use the optional smart search as a shortcut, then review the controls. At least one
-				place type is required; all other filters are optional.
+				Use the optional smart search as a shortcut, then review or adjust any filters.
 			</p>
 		</div>
 		<div class="search-controls">
@@ -473,7 +447,6 @@
 						type="button"
 						disabled={busy ||
 							!selectedLocation ||
-							filters.place_types.length === 0 ||
 							!smartSearchQuery.trim()}
 						onclick={applySmartSearch}
 					>
@@ -496,11 +469,6 @@
 				<h3>Manual filters</h3>
 				<p>Review anything filled by smart search, or choose filters yourself.</p>
 			</div>
-			<PlaceTypeFilter
-				selected={filters.place_types}
-				disabled={busy}
-				onChange={handlePlaceTypesChange}
-			/>
 			<SpecialtyFilters
 				cuisines={filters.cuisines}
 				commonFoods={filters.common_foods}
@@ -532,22 +500,8 @@
 		<div>
 			<p class="step-label">Step 3 · Review and search</p>
 			<h2 id="review-heading">Ready to find places?</h2>
-			<p>Location and place type are required. Filters and smart search are optional.</p>
+			<p>Location is required. Filters and smart search are optional.</p>
 		</div>
-		<ul class="search-readiness" aria-label="Search requirements">
-			<li class:requirement-ready={selectedLocation !== null}>
-				<span>{selectedLocation ? 'Location ready' : 'Location required'}</span>
-				<small>{selectedLocation?.label ?? 'Choose an address, coordinates, map point, or current location.'}</small>
-			</li>
-			<li class:requirement-ready={filters.place_types.length > 0}>
-				<span>{filters.place_types.length > 0 ? 'Place type ready' : 'Place type required'}</span>
-				<small>
-					{filters.place_types.length > 0
-						? `${filters.place_types.length} selected`
-						: 'Choose at least one place type.'}
-				</small>
-			</li>
-		</ul>
 		<div class="search-submit-row">
 			<div class="sort-control">
 				<label for="sort-select">Sort results</label>
@@ -566,7 +520,7 @@
 			<button
 				type="button"
 				class="search-submit-button"
-				disabled={busy || !selectedLocation || filters.place_types.length === 0}
+				disabled={busy || !selectedLocation}
 				onclick={search}
 			>
 				{searching ? 'Searching…' : 'Search places'}

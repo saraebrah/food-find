@@ -9,7 +9,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -193,23 +192,6 @@ def test_search_request_normalizes_minimum_rating_and_rating_sort() -> None:
     assert criteria.sort is SearchSort.RATING
 
 
-def test_search_request_normalizes_selected_place_types() -> None:
-    request = SearchPlacesRequest(
-        location=SelectedLocationRequest(
-            label="Toronto City Hall",
-            latitude=43.6532,
-            longitude=-79.3832,
-        ),
-        radius_meters=1_000,
-        filters={"place_types": ["bar", "bakery"]},
-        sort="provider_default",
-    )
-
-    assert request.to_domain().filters == SearchFilters(
-        place_types=(PlaceType.BAR, PlaceType.BAKERY)
-    )
-
-
 def test_search_request_normalizes_cuisine_and_distance_sort() -> None:
     request = SearchPlacesRequest(
         location=SelectedLocationRequest(
@@ -219,8 +201,7 @@ def test_search_request_normalizes_cuisine_and_distance_sort() -> None:
         ),
         radius_meters=1_000,
         filters={
-            "place_types": ["restaurant"],
-            "cuisines": ["italian", "persian"],
+            "cuisines": ["mexican", "japanese"],
             "common_foods": [],
         },
         sort="distance",
@@ -228,8 +209,7 @@ def test_search_request_normalizes_cuisine_and_distance_sort() -> None:
 
     criteria = request.to_domain()
     assert criteria.filters == SearchFilters(
-        place_types=(PlaceType.RESTAURANT,),
-        cuisines=(Cuisine.ITALIAN, Cuisine.PERSIAN),
+        cuisines=(Cuisine.MEXICAN, Cuisine.JAPANESE),
     )
     assert criteria.sort is SearchSort.DISTANCE
 
@@ -243,30 +223,19 @@ def test_search_request_normalizes_cuisine_and_common_food_together() -> None:
         ),
         radius_meters=1_000,
         filters={
-            "place_types": ["restaurant"],
             "cuisines": ["persian"],
-            "common_foods": ["pizza", "ramen"],
+            "common_foods": ["shawarma", "pasta"],
         },
     )
 
     assert request.to_domain().filters.cuisines == (Cuisine.PERSIAN,)
     assert request.to_domain().filters.common_foods == (
-        CommonFood.PIZZA,
-        CommonFood.RAMEN,
+        CommonFood.SHAWARMA,
+        CommonFood.PASTA,
     )
 
 
-@pytest.mark.parametrize(
-    "place_types",
-    (
-        [],
-        ["restaurant", "restaurant"],
-        ["food_truck"],
-    ),
-)
-def test_search_request_rejects_invalid_place_types(
-    place_types: list[str],
-) -> None:
+def test_search_request_rejects_removed_place_type_filter() -> None:
     with pytest.raises(ValidationError):
         SearchPlacesRequest(
             location=SelectedLocationRequest(
@@ -275,17 +244,17 @@ def test_search_request_rejects_invalid_place_types(
                 longitude=-79.3832,
             ),
             radius_meters=1_000,
-            filters={"place_types": place_types},
+            filters={"place_types": ["restaurant"]},
             sort="provider_default",
         )
 
 
 @pytest.mark.parametrize(
     "filters",
-    (
-        {"cuisines": ["canadian"]},
-        {"common_foods": ["pasta"]},
-        {"cuisines": ["italian", "italian"]},
+        (
+            {"cuisines": ["canadian"]},
+            {"common_foods": ["poutine"]},
+            {"cuisines": ["italian", "italian"]},
         {"common_foods": ["pizza", "pizza"]},
     ),
 )

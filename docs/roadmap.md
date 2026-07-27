@@ -54,9 +54,9 @@ The filters were implemented incrementally using Nearby Search and grouped by th
 ### Pro group
 
 1. [x] Establish one normalized filter and sorting state shared by the browser, API, and application.
-2. [x] Place type
-3. [x] Cuisine, using only supported provider types
-4. [x] Common food, using only reliable provider types and without claiming menu availability
+2. [x] Place type (implemented, then removed from the product on 2026-07-26 because it did not add useful user control)
+3. [x] Cuisine, using a reviewed FoodFind allowlist represented in Google Text Search
+4. [x] Common food, using reviewed Text Search relevance terms without claiming menu availability
 5. [x] Distance sorting through the provider's distance rank preference
 6. [x] Review the complete Pro filter group before requesting Enterprise search fields.
 
@@ -82,9 +82,9 @@ Manual controls establish the search model that smart search will later use. A f
 - **Status:** Complete
 
 1. [x] Migrate all food-business discovery from Nearby Search to Text Search while leaving location autocomplete and on-demand Place Details unchanged.
-   - Build one deterministic `textQuery` from the selected place types, cuisines, and common foods.
+   - Build one deterministic `textQuery` from a fixed broad food-business scope, selected cuisines, and selected common foods.
    - Allow cuisine and common food to coexist. Treat the result as Google text relevance, not verified menu availability.
-   - When exactly one place type is selected, also use Text Search's strict `includedType`. When several are selected, mention them in the query and remove returned places whose known Google types do not match any selection.
+   - Keep business type out of the editable filter contract and remove returned places whose known Google types fall outside FoodFind's broad food-business scope.
    - Restrict Google to a rectangle enclosing the selected circle, calculate exact straight-line distance in FoodFind, and remove outside-radius candidates.
    - Send Open now and minimum rating as Text Search request filters. Continue to request only the response fields required by active filters and sorts.
    - Keep the MVP to one Google request per submitted search and one batch of up to 20 candidates. Pagination and infinite scrolling remain future enhancements.
@@ -134,10 +134,12 @@ The LLM resolves language into a validated FoodFind intent; it does not call Goo
    - Selecting either view highlights the corresponding marker and card.
    - Marker selection does not fetch details; **View details** remains explicit.
 4. [x] Let users select or adjust the search location on the map.
+   - A base-map click selects the location directly; no separate selection-mode button is required.
    - Convert the chosen point into the existing normalized selected-location model.
    - Use coordinates as its initial visible label, clear stale results, and wait for **Search**.
    - Panning and zooming alone never change the search location or trigger a search.
 5. [x] Add **Use current location**.
+   - Present it as the first option when the Location field is focused or edited.
    - Request browser permission only after the user selects it.
    - On success, set the normalized location, clear stale results, and recenter. Wait for **Search**.
    - Handle denial, timeout, unavailable location, and poor accuracy while keeping manual selection available.
@@ -155,7 +157,7 @@ This phase completes the spatial experience after the result criteria are useful
 - **Priority:** P1
 - **Status:** In progress
 
-1. [x] Improve desktop and mobile layouts, beginning with a location-first search flow, map placement, required-criteria guidance, and a responsive final search action.
+1. [x] Improve desktop and mobile layouts, beginning with a location-first search flow, map placement, concise location guidance, and a responsive final search action.
 2. [ ] Add keyboard and accessibility support.
 3. [ ] Handle missing provider fields consistently.
 4. [ ] Add compliant short-lived caching if useful.
@@ -210,7 +212,7 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 ### Broader category and provider coverage
 
-- Revisit useful categories that the current FoodFind taxonomy does not represent reliably, including a generic food-truck filter and common foods such as pasta.
+- Revisit useful categories that the current FoodFind taxonomy does not represent reliably, including a generic food-truck filter.
 - Evaluate Text Search quality first, then another licensed provider or an open base dataset if Google remains insufficient.
 - Preserve provider attribution, storage rights, entity matching, and deduplication when combining sources.
 

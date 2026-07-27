@@ -8,7 +8,6 @@ from app.domain.place import Coordinates, OpeningPeriod, Place, PlaceDetails
 from app.domain.search import (
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchFilters,
     SearchSort,
 )
@@ -233,7 +232,6 @@ def test_explicit_search_calls_provider_once_and_returns_places(
             },
             "radius_meters": 2_000,
             "filters": {
-                "place_types": ["bar", "bakery"],
                 "cuisines": ["italian"],
                 "open_now": True,
                 "minimum_rating": 4.5,
@@ -253,7 +251,6 @@ def test_explicit_search_calls_provider_once_and_returns_places(
             "longitude": -79.3806,
             "radius_meters": 2_000,
             "filters": SearchFilters(
-                place_types=(PlaceType.BAR, PlaceType.BAKERY),
                 cuisines=(Cuisine.ITALIAN,),
                 open_now=True,
                 minimum_rating=MinimumRating.FOUR_AND_HALF,
@@ -332,7 +329,7 @@ def test_explicit_search_carries_reviewed_text_and_availability_once(
                 "longitude": -79.3806,
             },
             "radius_meters": 2_000,
-            "filters": {"place_types": ["restaurant"]},
+            "filters": {},
             "sort": "provider_default",
             "descriptive_requirements": [
                 {"text": "quiet atmosphere", "kind": "atmosphere"}
@@ -416,7 +413,7 @@ def test_search_rejects_unsupported_availability_without_provider_call(
     (
         ({"delivery": True}, "provider_default"),
         ({"minimum_rating": 3.7}, "provider_default"),
-        ({"place_types": ["food_truck"]}, "provider_default"),
+        ({"place_types": ["restaurant"]}, "provider_default"),
         ({}, "price"),
     ),
 )

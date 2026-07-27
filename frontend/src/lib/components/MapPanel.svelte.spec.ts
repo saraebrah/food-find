@@ -98,22 +98,11 @@ describe('MapPanel', () => {
 			radiusMeters: 1_000,
 			places: [],
 			selectedPlaceKey: null,
-			locationSelectionEnabled: false,
+			locationSelectionEnabled: true,
 			searchAreaSelected: false
 		});
 		await expect
-			.element(page.getByText('Choose a location above or select one on the map.'))
-			.toBeVisible();
-
-		mountOptions.onLocationSelect({
-			latitude: 43.65012349,
-			longitude: -79.39098751
-		});
-		expect(onLocationSelect).not.toHaveBeenCalled();
-
-		await page.getByRole('button', { name: 'Choose location on map' }).click();
-		await expect
-			.element(page.getByText('Select a point on the map, or cancel.'))
+			.element(page.getByText('Click the map to choose or change the location.'))
 			.toBeVisible();
 		expect(renderSnapshot).toHaveBeenLastCalledWith(
 			expect.objectContaining({ locationSelectionEnabled: true })
@@ -129,10 +118,7 @@ describe('MapPanel', () => {
 		});
 		await expect
 			.element(page.getByRole('button', { name: 'Choose location on map' }))
-			.toHaveAttribute('aria-pressed', 'false');
-		expect(renderSnapshot).toHaveBeenLastCalledWith(
-			expect.objectContaining({ locationSelectionEnabled: false })
-		);
+			.not.toBeInTheDocument();
 
 		await rendered.rerender({
 			apiKey: 'browser-key',
@@ -158,7 +144,7 @@ describe('MapPanel', () => {
 				}
 			],
 			selectedPlaceKey: 'google:place-1',
-			locationSelectionEnabled: false,
+			locationSelectionEnabled: true,
 			searchAreaSelected: true
 		});
 

@@ -13,7 +13,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -31,10 +30,6 @@ from app.domain.search_intent import (
 class SearchFiltersOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    place_types: tuple[PlaceType, ...] = Field(
-        min_length=1,
-        max_length=len(PlaceType),
-    )
     cuisines: tuple[Cuisine, ...] = Field(max_length=len(Cuisine))
     common_foods: tuple[CommonFood, ...] = Field(max_length=len(CommonFood))
     open_now: bool
@@ -42,7 +37,7 @@ class SearchFiltersOutput(BaseModel):
     dine_in: bool
     takeout: bool
 
-    @field_validator("place_types", "cuisines", "common_foods")
+    @field_validator("cuisines", "common_foods")
     @classmethod
     def values_must_be_unique(
         cls,
@@ -54,7 +49,6 @@ class SearchFiltersOutput(BaseModel):
 
     def to_domain(self) -> SearchFilters:
         return SearchFilters(
-            place_types=self.place_types,
             cuisines=self.cuisines,
             common_foods=self.common_foods,
             open_now=self.open_now,
