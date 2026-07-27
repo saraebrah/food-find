@@ -46,7 +46,7 @@ Example requests:
 - Ambiguous, invalid, or unsupported location input must not silently start a search from an assumed location.
 - The page must begin with an empty location field and must not assume Toronto or another location for a search.
 - Location and radius appear first, followed immediately by the map. Smart search and manual criteria come afterward.
-- Before submission, the page must clearly identify location and place type as required and all other criteria as optional.
+- Before submission, the page must clearly identify location as required and all search criteria as optional.
 - Map
 - The search box must accept short keywords, such as `Thai food`.
 - The search box must accept natural-language requests, such as `Persian restaurants within three kilometres that are open now`.
@@ -60,9 +60,8 @@ Example requests:
 
 ### Filters and sorting
 
-- Place type, such as restaurant, café, bar, bakery, or food truck
-- Cuisine, such as Chinese, Italian, Persian, Thai, or Indian
-- Common food, such as pizza, burgers, pasta, steak, ramen, or kebab
+- Cuisine, such as Chinese, Italian, Persian, Thai, Indian, Mexican, Japanese, Korean, Vietnamese, or Mediterranean
+- Common food, such as pizza, burgers, steak, ramen, kebab, shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, or pasta
 - Open now
 - Dine-in and takeout
 - Minimum rating

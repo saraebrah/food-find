@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.domain.search import CommonFood, Cuisine, MinimumRating, PlaceType, SearchSort
+from app.domain.search import CommonFood, Cuisine, MinimumRating, SearchSort
 from app.domain.search_interpretation import (
     FOODFIND_SEARCH_CAPABILITIES,
     SearchInterpretationContext,
@@ -26,7 +26,6 @@ def test_context_exposes_local_date_time_and_supported_capabilities() -> None:
     assert context.local_datetime.isoformat() == "2026-07-23T11:30:00-04:00"
     assert context.current_date.isoformat() == "2026-07-23"
     assert context.capabilities is FOODFIND_SEARCH_CAPABILITIES
-    assert context.capabilities.place_types == tuple(PlaceType)
     assert context.capabilities.cuisines == tuple(Cuisine)
     assert context.capabilities.common_foods == tuple(CommonFood)
     assert context.capabilities.minimum_ratings == tuple(MinimumRating)

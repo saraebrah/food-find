@@ -17,13 +17,36 @@ export interface LocationSuggestion {
 	label: string;
 }
 
-export type PlaceType = 'restaurant' | 'cafe' | 'bar' | 'bakery';
-export type Cuisine = 'chinese' | 'italian' | 'persian' | 'thai' | 'indian';
-export type CommonFood = 'pizza' | 'burger' | 'steak' | 'ramen' | 'kebab';
+export type Cuisine =
+	| 'chinese'
+	| 'italian'
+	| 'persian'
+	| 'thai'
+	| 'indian'
+	| 'mexican'
+	| 'japanese'
+	| 'korean'
+	| 'vietnamese'
+	| 'mediterranean';
+export type CommonFood =
+	| 'pizza'
+	| 'burger'
+	| 'steak'
+	| 'ramen'
+	| 'kebab'
+	| 'shawarma'
+	| 'ice_cream'
+	| 'dessert'
+	| 'sweets'
+	| 'drinks'
+	| 'sushi'
+	| 'taco'
+	| 'salad'
+	| 'soup'
+	| 'pasta';
 export type MinimumRating = 3 | 3.5 | 4 | 4.5;
 
 export interface SearchFilters {
-	place_types: PlaceType[];
 	cuisines: Cuisine[];
 	common_foods: CommonFood[];
 	open_now: boolean;

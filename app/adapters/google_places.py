@@ -11,7 +11,6 @@ from app.domain.search import (
     EARTH_RADIUS_METERS,
     CommonFood,
     Cuisine,
-    PlaceType,
     SearchFilters,
     SearchSort,
 )
@@ -156,24 +155,19 @@ GOOGLE_BUSINESS_STATUSES = {
     "CLOSED_TEMPORARILY": "temporarily_closed",
     "CLOSED_PERMANENTLY": "permanently_closed",
 }
-GOOGLE_PLACE_TYPES = {
-    PlaceType.RESTAURANT: "restaurant",
-    PlaceType.CAFE: "cafe",
-    PlaceType.BAR: "bar",
-    PlaceType.BAKERY: "bakery",
-}
-GOOGLE_PLACE_TYPE_QUERY_TEXT = {
-    PlaceType.RESTAURANT: "restaurants",
-    PlaceType.CAFE: "cafes",
-    PlaceType.BAR: "bars",
-    PlaceType.BAKERY: "bakeries",
-}
+GOOGLE_FOOD_BUSINESS_TYPES = frozenset(("restaurant", "cafe", "bar", "bakery"))
+GOOGLE_FOOD_BUSINESS_QUERY = "restaurants or cafes or bars or bakeries"
 GOOGLE_CUISINE_QUERY_TEXT = {
     Cuisine.CHINESE: "Chinese",
     Cuisine.ITALIAN: "Italian",
     Cuisine.PERSIAN: "Persian",
     Cuisine.THAI: "Thai",
     Cuisine.INDIAN: "Indian",
+    Cuisine.MEXICAN: "Mexican",
+    Cuisine.JAPANESE: "Japanese",
+    Cuisine.KOREAN: "Korean",
+    Cuisine.VIETNAMESE: "Vietnamese",
+    Cuisine.MEDITERRANEAN: "Mediterranean",
 }
 GOOGLE_COMMON_FOOD_QUERY_TEXT = {
     CommonFood.PIZZA: "pizza",
@@ -181,6 +175,16 @@ GOOGLE_COMMON_FOOD_QUERY_TEXT = {
     CommonFood.STEAK: "steak",
     CommonFood.RAMEN: "ramen",
     CommonFood.KEBAB: "kebab",
+    CommonFood.SHAWARMA: "shawarma",
+    CommonFood.ICE_CREAM: "ice cream",
+    CommonFood.DESSERT: "desserts",
+    CommonFood.SWEETS: "sweets",
+    CommonFood.DRINKS: "drinks",
+    CommonFood.SUSHI: "sushi",
+    CommonFood.TACO: "tacos",
+    CommonFood.SALAD: "salad",
+    CommonFood.SOUP: "soup",
+    CommonFood.PASTA: "pasta",
 }
 
 
@@ -222,11 +226,7 @@ class GooglePlacesGateway(PlaceProvider):
         filters: SearchFilters,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
     ) -> str:
-        place_types = " or ".join(
-            GOOGLE_PLACE_TYPE_QUERY_TEXT[place_type]
-            for place_type in filters.place_types
-        )
-        parts = [place_types]
+        parts = [GOOGLE_FOOD_BUSINESS_QUERY]
         if filters.cuisines:
             cuisines = " or ".join(
                 GOOGLE_CUISINE_QUERY_TEXT[cuisine]
@@ -314,8 +314,6 @@ class GooglePlacesGateway(PlaceProvider):
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
     ) -> list[Place]:
-        if not filters.place_types:
-            raise ValueError("At least one place type is required")
         if not 0 < radius_meters <= 50_000:
             raise ValueError("Radius must be greater than zero and at most 50,000 metres")
 
@@ -331,21 +329,12 @@ class GooglePlacesGateway(PlaceProvider):
                 radius_meters=radius_meters,
             ),
         }
-        if len(filters.place_types) == 1:
-            request_body["includedType"] = GOOGLE_PLACE_TYPES[
-                filters.place_types[0]
-            ]
-            request_body["strictTypeFiltering"] = True
         if filters.open_now:
             request_body["openNow"] = True
         if filters.minimum_rating is not None:
             request_body["minRating"] = filters.minimum_rating.value
         if sort is SearchSort.DISTANCE:
             request_body["rankPreference"] = "DISTANCE"
-
-        selected_google_types = frozenset(
-            GOOGLE_PLACE_TYPES[place_type] for place_type in filters.place_types
-        )
 
         try:
             response = await self._http_client.post(
@@ -374,7 +363,7 @@ class GooglePlacesGateway(PlaceProvider):
                 availability_window=availability_window,
             )
             for place in google_response.places
-            if not place.types or selected_google_types.intersection(place.types)
+            if not place.types or GOOGLE_FOOD_BUSINESS_TYPES.intersection(place.types)
         ]
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails:

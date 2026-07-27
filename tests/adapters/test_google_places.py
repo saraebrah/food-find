@@ -10,7 +10,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchFilters,
     SearchSort,
 )
@@ -44,7 +43,9 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
 
         restriction = body.pop("locationRestriction")
         assert body == {
-            "textQuery": "bars or bakeries with Italian cuisine",
+            "textQuery": (
+                "restaurants or cafes or bars or bakeries with Italian cuisine"
+            ),
             "pageSize": 20,
             "openNow": True,
             "minRating": 4.0,
@@ -86,7 +87,6 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
             longitude=-79.3806,
             radius_meters=1000,
             filters=SearchFilters(
-                place_types=(PlaceType.BAR, PlaceType.BAKERY),
                 cuisines=(Cuisine.ITALIAN,),
                 open_now=True,
                 minimum_rating=MinimumRating.FOUR,
@@ -117,10 +117,11 @@ async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         assert body["textQuery"] == (
-            "restaurants with Persian cuisine serving kebab or ramen"
+            "restaurants or cafes or bars or bakeries "
+            "with Persian cuisine serving kebab or ramen"
         )
-        assert body["includedType"] == "restaurant"
-        assert body["strictTypeFiltering"] is True
+        assert "includedType" not in body
+        assert "strictTypeFiltering" not in body
         assert "includedPrimaryTypes" not in body
         return httpx.Response(200, request=request, json={"places": []})
 
@@ -133,7 +134,6 @@ async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
             longitude=-79.3806,
             radius_meters=1000,
             filters=SearchFilters(
-                place_types=(PlaceType.RESTAURANT,),
                 cuisines=(Cuisine.PERSIAN,),
                 common_foods=(CommonFood.KEBAB, CommonFood.RAMEN),
             ),
@@ -141,6 +141,50 @@ async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
         )
 
     assert places == []
+
+
+def test_text_search_maps_the_expanded_cuisines_to_query_text() -> None:
+    query = GooglePlacesGateway._build_text_query(
+        filters=SearchFilters(
+            cuisines=(
+                Cuisine.MEXICAN,
+                Cuisine.JAPANESE,
+                Cuisine.KOREAN,
+                Cuisine.VIETNAMESE,
+                Cuisine.MEDITERRANEAN,
+            )
+        )
+    )
+
+    assert query == (
+        "restaurants or cafes or bars or bakeries "
+        "with Mexican or Japanese or Korean or Vietnamese or Mediterranean cuisine"
+    )
+
+
+def test_text_search_maps_the_expanded_common_foods_to_query_text() -> None:
+    query = GooglePlacesGateway._build_text_query(
+        filters=SearchFilters(
+            common_foods=(
+                CommonFood.SHAWARMA,
+                CommonFood.ICE_CREAM,
+                CommonFood.DESSERT,
+                CommonFood.SWEETS,
+                CommonFood.DRINKS,
+                CommonFood.SUSHI,
+                CommonFood.TACO,
+                CommonFood.SALAD,
+                CommonFood.SOUP,
+                CommonFood.PASTA,
+            )
+        )
+    )
+
+    assert query == (
+        "restaurants or cafes or bars or bakeries serving "
+        "shawarma or ice cream or desserts or sweets or drinks or sushi "
+        "or tacos or salad or soup or pasta"
+    )
 
 
 @pytest.mark.anyio
@@ -153,7 +197,8 @@ async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods()
     async def handle_request(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         assert body["textQuery"] == (
-            "restaurants with Persian cuisine quiet atmosphere"
+            "restaurants or cafes or bars or bakeries "
+            "with Persian cuisine quiet atmosphere"
         )
         assert request.headers["X-Goog-FieldMask"] == (
             "places.id,places.displayName,places.primaryType,places.types,"
@@ -215,7 +260,6 @@ async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods()
             longitude=-79.3806,
             radius_meters=1000,
             filters=SearchFilters(
-                place_types=(PlaceType.RESTAURANT,),
                 cuisines=(Cuisine.PERSIAN,),
             ),
             sort=SearchSort.PROVIDER_DEFAULT,
@@ -245,9 +289,9 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
             "places.primaryTypeDisplayName,places.formattedAddress,places.location,"
             "places.businessStatus"
         )
-        assert body["textQuery"] == "restaurants"
-        assert body["includedType"] == "restaurant"
-        assert body["strictTypeFiltering"] is True
+        assert body["textQuery"] == "restaurants or cafes or bars or bakeries"
+        assert "includedType" not in body
+        assert "strictTypeFiltering" not in body
         assert "rankPreference" not in body
         return httpx.Response(
             200,
@@ -271,7 +315,7 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
-            filters=SearchFilters(place_types=(PlaceType.RESTAURANT,)),
+            filters=SearchFilters(),
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
@@ -291,7 +335,7 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
 
 
 @pytest.mark.anyio
-async def test_text_search_removes_known_nonselected_place_types() -> None:
+async def test_text_search_removes_known_non_food_business_types() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
@@ -321,9 +365,7 @@ async def test_text_search_removes_known_nonselected_place_types() -> None:
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
-            filters=SearchFilters(
-                place_types=(PlaceType.RESTAURANT, PlaceType.CAFE),
-            ),
+            filters=SearchFilters(),
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
@@ -428,7 +470,7 @@ async def test_text_search_translates_google_error_response() -> None:
                 latitude=43.6453,
                 longitude=-79.3806,
                 radius_meters=1000,
-                filters=SearchFilters(place_types=(PlaceType.RESTAURANT,)),
+                filters=SearchFilters(),
                 sort=SearchSort.PROVIDER_DEFAULT,
             )
 

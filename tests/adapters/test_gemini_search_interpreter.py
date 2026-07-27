@@ -49,7 +49,6 @@ def valid_output() -> SearchIntentOutput:
         {
             "radius_meters": 1_000,
             "filters": {
-                "place_types": ["restaurant"],
                 "cuisines": ["persian"],
                 "common_foods": [],
                 "open_now": False,
@@ -112,7 +111,7 @@ async def test_gemini_uses_structured_output_with_step_four_context() -> None:
     assert '"current_date":"2026-07-23"' in contents
     assert '"current_datetime":"2026-07-23T11:30:00-04:00"' in contents
     assert '"timezone":"America/Toronto"' in contents
-    assert '"place_types":["restaurant","cafe","bar","bakery"]' in contents
+    assert '"place_types"' not in contents
     assert '"minimum_rating":null' in contents
     assert '"minimum_ratings":[3.0,3.5,4.0,4.5]' in contents
     assert '"time_aware_availability":true' in contents

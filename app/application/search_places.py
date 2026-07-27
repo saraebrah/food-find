@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from app.application.match_reasons import build_match_reasons
 from app.domain.place import Place
 from app.domain.search import (
-    DEFAULT_PLACE_TYPES,
     SearchCriteria,
     SearchSort,
     straight_line_distance_meters,
@@ -17,7 +16,6 @@ from app.domain.search_intent import (
 from app.ports.place_provider import PlaceProvider
 
 
-DEFAULT_SEARCH_TYPES = DEFAULT_PLACE_TYPES
 EXCLUDED_BUSINESS_STATUSES = frozenset(
     ("temporarily_closed", "permanently_closed")
 )

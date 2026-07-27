@@ -82,10 +82,6 @@ class InterpretSearch:
                 <= capabilities.maximum_radius_meters
             )
             or any(
-                place_type not in capabilities.place_types
-                for place_type in filters.place_types
-            )
-            or any(
                 cuisine not in capabilities.cuisines
                 for cuisine in filters.cuisines
             )

@@ -9,22 +9,17 @@ from app.domain.place import Coordinates
 EARTH_RADIUS_METERS = 6_371_000
 
 
-class PlaceType(str, Enum):
-    RESTAURANT = "restaurant"
-    CAFE = "cafe"
-    BAR = "bar"
-    BAKERY = "bakery"
-
-
-DEFAULT_PLACE_TYPES = (PlaceType.RESTAURANT, PlaceType.CAFE)
-
-
 class Cuisine(str, Enum):
     CHINESE = "chinese"
     ITALIAN = "italian"
     PERSIAN = "persian"
     THAI = "thai"
     INDIAN = "indian"
+    MEXICAN = "mexican"
+    JAPANESE = "japanese"
+    KOREAN = "korean"
+    VIETNAMESE = "vietnamese"
+    MEDITERRANEAN = "mediterranean"
 
 
 class CommonFood(str, Enum):
@@ -33,6 +28,16 @@ class CommonFood(str, Enum):
     STEAK = "steak"
     RAMEN = "ramen"
     KEBAB = "kebab"
+    SHAWARMA = "shawarma"
+    ICE_CREAM = "ice_cream"
+    DESSERT = "dessert"
+    SWEETS = "sweets"
+    DRINKS = "drinks"
+    SUSHI = "sushi"
+    TACO = "taco"
+    SALAD = "salad"
+    SOUP = "soup"
+    PASTA = "pasta"
 
 
 class MinimumRating(float, Enum):
@@ -46,7 +51,6 @@ class MinimumRating(float, Enum):
 class SearchFilters:
     """Normalized filters supported by the current search implementation."""
 
-    place_types: tuple[PlaceType, ...] = DEFAULT_PLACE_TYPES
     cuisines: tuple[Cuisine, ...] = ()
     common_foods: tuple[CommonFood, ...] = ()
     open_now: bool = False
@@ -55,10 +59,6 @@ class SearchFilters:
     takeout: bool = False
 
     def __post_init__(self) -> None:
-        if not self.place_types:
-            raise ValueError("At least one place type is required")
-        if len(set(self.place_types)) != len(self.place_types):
-            raise ValueError("Place types must be unique")
         if len(set(self.cuisines)) != len(self.cuisines):
             raise ValueError("Cuisines must be unique")
         if len(set(self.common_foods)) != len(self.common_foods):

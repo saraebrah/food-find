@@ -1,13 +1,14 @@
 <script lang="ts">
-	import type { PlaceType } from '$lib/types';
+	// Retained as an unused legacy component; the active search no longer exposes this filter.
+	type LegacyPlaceType = 'restaurant' | 'cafe' | 'bar' | 'bakery';
 
 	interface Props {
-		selected: PlaceType[];
+		selected: LegacyPlaceType[];
 		disabled: boolean;
-		onChange: (placeTypes: PlaceType[]) => void;
+		onChange: (placeTypes: LegacyPlaceType[]) => void;
 	}
 
-	const options: { value: PlaceType; label: string }[] = [
+	const options: { value: LegacyPlaceType; label: string }[] = [
 		{ value: 'restaurant', label: 'Restaurant' },
 		{ value: 'cafe', label: 'Café' },
 		{ value: 'bar', label: 'Bar' },
@@ -16,7 +17,7 @@
 
 	let { selected, disabled, onChange }: Props = $props();
 
-	function toggle(placeType: PlaceType, checked: boolean) {
+	function toggle(placeType: LegacyPlaceType, checked: boolean) {
 		const selectedTypes = new Set(selected);
 		if (checked) selectedTypes.add(placeType);
 		else selectedTypes.delete(placeType);

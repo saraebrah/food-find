@@ -11,7 +11,6 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
-    PlaceType,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -37,7 +36,6 @@ def test_validated_output_converts_to_provider_independent_intent() -> None:
         {
             "radius_meters": 3_000,
             "filters": {
-                "place_types": ["restaurant"],
                 "cuisines": ["persian"],
                 "common_foods": ["kebab"],
                 "open_now": False,
@@ -73,7 +71,6 @@ def test_validated_output_converts_to_provider_independent_intent() -> None:
     assert intent.search_criteria.location == make_base_criteria().location
     assert intent.search_criteria.radius_meters == 3_000
     assert intent.search_criteria.filters == SearchFilters(
-        place_types=(PlaceType.RESTAURANT,),
         cuisines=(Cuisine.PERSIAN,),
         common_foods=(CommonFood.KEBAB,),
         minimum_rating=MinimumRating.FOUR_AND_HALF,
@@ -101,8 +98,7 @@ def test_validated_output_converts_to_provider_independent_intent() -> None:
     "payload_update",
     (
         {"radius_meters": 50},
-        {"filters": {"place_types": []}},
-        {"filters": {"place_types": ["food_truck"]}},
+        {"filters": {"place_types": ["restaurant"]}},
         {"sort": "price"},
         {"unexpected": "value"},
     ),
@@ -113,7 +109,6 @@ def test_output_rejects_values_outside_foodfind_contract(
     payload: dict[str, object] = {
         "radius_meters": 1_000,
         "filters": {
-            "place_types": ["restaurant"],
             "cuisines": [],
             "common_foods": [],
             "open_now": False,
@@ -139,7 +134,6 @@ def test_output_rejects_timezone_free_availability_window() -> None:
             {
                 "radius_meters": 1_000,
                 "filters": {
-                    "place_types": ["restaurant"],
                     "cuisines": [],
                     "common_foods": [],
                     "open_now": False,
@@ -164,7 +158,6 @@ def test_output_accepts_equal_times_for_an_exact_time_request() -> None:
         {
             "radius_meters": 1_000,
             "filters": {
-                "place_types": ["restaurant"],
                 "cuisines": [],
                 "common_foods": [],
                 "open_now": False,

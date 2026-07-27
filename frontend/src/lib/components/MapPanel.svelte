@@ -33,11 +33,9 @@
 	let mapElement: HTMLDivElement;
 	let mapMount = $state<MapMount | null>(null);
 	let loadState = $state<'loading' | 'ready' | 'missing-key' | 'error'>('loading');
-	let choosingLocation = $state(false);
 
 	function handleLocationSelect(coordinates: Coordinates) {
-		if (!choosingLocation || disabled) return;
-		choosingLocation = false;
+		if (disabled) return;
 		onLocationSelect(coordinates);
 	}
 
@@ -57,13 +55,12 @@
 				}
 			})),
 			selectedPlaceKey,
-			locationSelectionEnabled: choosingLocation,
+			locationSelectionEnabled: !disabled,
 			searchAreaSelected
 		};
 	}
 
 	$effect(() => {
-		if (disabled) choosingLocation = false;
 		mapMount?.render(snapshot());
 	});
 
@@ -115,24 +112,12 @@
 		</div>
 		<div class="map-actions">
 			<p>
-				{#if choosingLocation}
-					Select a point on the map, or cancel.
-				{:else if !searchAreaSelected}
-					Choose a location above or select one on the map.
+				{#if disabled}
+					Map location selection is temporarily unavailable.
 				{:else}
-					Showing the selected search area and {places.length}
-					{places.length === 1 ? 'result' : 'results'}.
+					Click the map to choose or change the location.
 				{/if}
 			</p>
-			<button
-				type="button"
-				class="map-location-button"
-				disabled={disabled || loadState !== 'ready'}
-				aria-pressed={choosingLocation}
-				onclick={() => (choosingLocation = !choosingLocation)}
-			>
-				{choosingLocation ? 'Cancel map selection' : 'Choose location on map'}
-			</button>
 		</div>
 	</div>
 	<div class="map-frame" aria-busy={loadState === 'loading'}>

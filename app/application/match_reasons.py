@@ -96,7 +96,8 @@ def build_match_reasons(
 
     if criteria.filters.common_foods:
         foods = tuple(
-            food.value.title() for food in criteria.filters.common_foods
+            food.value.replace("_", " ").title()
+            for food in criteria.filters.common_foods
         )
         if len(foods) == 1:
             food_text = (
@@ -111,7 +112,8 @@ def build_match_reasons(
         relevance.append(_reason(MatchReasonKind.RELEVANCE, food_text))
 
     active_foods = tuple(
-        food.value for food in criteria.filters.common_foods
+        food.value.replace("_", " ")
+        for food in criteria.filters.common_foods
     )
     seen_requirements: set[tuple[DescriptiveRequirementKind, str]] = set()
     for requirement in descriptive_requirements:
