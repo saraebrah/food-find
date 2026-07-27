@@ -6,6 +6,7 @@ import {
 	looksLikeCoordinatePair,
 	parseCoordinates,
 	phoneHref,
+	selectedLocationFromCoordinates,
 	websiteHref
 } from './search';
 
@@ -27,6 +28,22 @@ describe('coordinate parsing', () => {
 	it('recognizes numeric pairs even when their ranges are invalid', () => {
 		expect(looksLikeCoordinatePair('91, -79')).toBe(true);
 		expect(looksLikeCoordinatePair('Toronto')).toBe(false);
+	});
+
+	it('creates a concise selected-location label from map coordinates', () => {
+		expect(
+			selectedLocationFromCoordinates({
+				latitude: 43.65012349,
+				longitude: -79.39098751
+			})
+		).toEqual({
+			label: '43.650123, -79.390988',
+			latitude: 43.650123,
+			longitude: -79.390988
+		});
+		expect(
+			selectedLocationFromCoordinates({ latitude: 91, longitude: -79 })
+		).toBeNull();
 	});
 });
 

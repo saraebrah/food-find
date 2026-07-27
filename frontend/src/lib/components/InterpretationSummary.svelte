@@ -95,7 +95,7 @@
 			return;
 		}
 		onAvailabilityChange(window);
-		onStatus('Availability updated. Select Search when you are ready.');
+		onStatus('Availability updated. Select Search places when you are ready.');
 	}
 </script>
 
@@ -138,7 +138,7 @@
 				class="secondary-button"
 				onclick={() => {
 					onAvailabilityChange(null);
-					onStatus('Time preference removed. Select Search when you are ready.');
+					onStatus('Time preference removed. Select Search places when you are ready.');
 				}}
 			>
 				Remove time preference

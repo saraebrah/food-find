@@ -1,19 +1,27 @@
 <script lang="ts">
+	import { env } from '$env/dynamic/public';
 	import { onDestroy } from 'svelte';
 
 	import { ApiError, interpretSearch, searchPlaces } from '$lib/api';
+	import CurrentLocationButton from '$lib/components/CurrentLocationButton.svelte';
 	import InterpretationSummary from '$lib/components/InterpretationSummary.svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
+	import MapPanel from '$lib/components/MapPanel.svelte';
 	import MinimumRatingFilter from '$lib/components/MinimumRatingFilter.svelte';
 	import OpenNowFilter from '$lib/components/OpenNowFilter.svelte';
 	import PlaceCard from '$lib/components/PlaceCard.svelte';
 	import PlaceTypeFilter from '$lib/components/PlaceTypeFilter.svelte';
 	import ServiceFilters from '$lib/components/ServiceFilters.svelte';
 	import SpecialtyFilters from '$lib/components/SpecialtyFilters.svelte';
-	import { formatRadius } from '$lib/search';
+	import type { DeviceLocation } from '$lib/geolocation/geolocation-provider';
+	import {
+		formatRadius,
+		selectedLocationFromCoordinates
+	} from '$lib/search';
 	import type {
 		AvailabilityWindow,
 		CommonFood,
+		Coordinates,
 		Cuisine,
 		MinimumRating,
 		Place,
@@ -26,13 +34,16 @@
 		SelectedLocation
 	} from '$lib/types';
 
-	const initialLocation: SelectedLocation = {
-		label: '43.6532, -79.3832',
+	const initialMapCenter: Coordinates = {
 		latitude: 43.6532,
 		longitude: -79.3832
 	};
 
-	let selectedLocation = $state<SelectedLocation | null>({ ...initialLocation });
+	let selectedLocation = $state<SelectedLocation | null>(null);
+	let mapCenter = $state<Coordinates>({
+		latitude: initialMapCenter.latitude,
+		longitude: initialMapCenter.longitude
+	});
 	let radiusMeters = $state(1000);
 	let filters = $state<SearchFilters>({
 		place_types: ['restaurant', 'cafe'],
@@ -45,16 +56,19 @@
 	});
 	let sort = $state<SearchSort>('provider_default');
 	let places = $state<Place[]>([]);
-	let status = $state('Select Search when you are ready.');
+	let selectedPlaceKey = $state<string | null>(null);
+	let locationStatus = $state('Choose a location to define the search area.');
+	let status = $state('Choose what to find, then select Search places.');
 	let searching = $state(false);
 	let interpreting = $state(false);
+	let locating = $state(false);
 	let smartSearchQuery = $state('');
 	let interpretation = $state<SearchInterpretation | null>(null);
 	let interpretationEdited = $state(false);
 	let searchVersion = $state(0);
 	let controller: AbortController | null = null;
 	let interpretationController: AbortController | null = null;
-	const busy = $derived(searching || interpreting);
+	const busy = $derived(searching || interpreting || locating);
 	const standardRadii = [500, 1000, 2000, 5000];
 
 	onDestroy(() => {
@@ -64,6 +78,16 @@
 
 	function clearResults() {
 		places = [];
+		selectedPlaceKey = null;
+	}
+
+	function placeKey(place: Place): string {
+		return `${place.provider}:${place.provider_place_id}`;
+	}
+
+	function handlePlaceSelect(key: string) {
+		if (!places.some((place) => placeKey(place) === key)) return;
+		selectedPlaceKey = key;
 	}
 
 	function markInterpretationEdited() {
@@ -72,14 +96,69 @@
 
 	function handleLocationChange(location: SelectedLocation | null) {
 		selectedLocation = location;
+		if (location) {
+			mapCenter = {
+				latitude: location.latitude,
+				longitude: location.longitude
+			};
+		}
 		markInterpretationEdited();
+	}
+
+	function applyCoordinateLocation(
+		coordinates: Coordinates,
+		label?: string
+	): boolean {
+		const normalizedLocation = selectedLocationFromCoordinates(coordinates);
+		if (!normalizedLocation) return false;
+		const location = {
+			...normalizedLocation,
+			label: label ?? normalizedLocation.label
+		};
+		selectedLocation = location;
+		mapCenter = {
+			latitude: location.latitude,
+			longitude: location.longitude
+		};
+		clearResults();
+		markInterpretationEdited();
+		return true;
+	}
+
+	function handleMapLocationSelect(coordinates: {
+		latitude: number;
+		longitude: number;
+	}) {
+		if (!applyCoordinateLocation(coordinates)) {
+			locationStatus = 'That map point could not be selected. Try another point.';
+			return;
+		}
+		locationStatus = 'Map location selected. Select Search places when you are ready.';
+	}
+
+	function handleCurrentLocation(location: DeviceLocation) {
+		if (!applyCoordinateLocation(location.coordinates, 'Current location')) {
+			locationStatus = 'Your current location could not be used. Enter a location or choose one on the map.';
+			return;
+		}
+		if (location.accuracyMeters > radiusMeters) {
+			const accuracy =
+				location.accuracyMeters < 1_000
+					? `${Math.round(location.accuracyMeters)} m`
+					: `${(location.accuracyMeters / 1_000).toFixed(1)} km`;
+			locationStatus =
+				`Current location selected, but your browser estimates accuracy within ${accuracy}. ` +
+				'Adjust it manually or on the map if needed, then select Search places.';
+			return;
+		}
+		locationStatus = 'Current location selected. Select Search places when you are ready.';
 	}
 
 	function handleRadiusChange(event: Event) {
 		radiusMeters = Number((event.currentTarget as HTMLSelectElement).value);
 		clearResults();
 		markInterpretationEdited();
-		status = 'Radius updated. Select Search to refresh the results.';
+		locationStatus = 'Radius updated. Select Search places to refresh the results.';
 	}
 
 	function handlePlaceTypesChange(placeTypes: PlaceType[]) {
@@ -88,7 +167,7 @@
 		markInterpretationEdited();
 		status =
 			placeTypes.length > 0
-				? 'Place types updated. Select Search to refresh the results.'
+				? 'Place types updated. Select Search places to refresh the results.'
 				: 'Choose at least one place type.';
 	}
 
@@ -96,49 +175,49 @@
 		filters = { ...filters, cuisines };
 		clearResults();
 		markInterpretationEdited();
-		status = 'Cuisine updated. Select Search to refresh the results.';
+		status = 'Cuisine updated. Select Search places to refresh the results.';
 	}
 
 	function handleCommonFoodsChange(commonFoods: CommonFood[]) {
 		filters = { ...filters, common_foods: commonFoods };
 		clearResults();
 		markInterpretationEdited();
-		status = 'Common food updated. Select Search to refresh the results.';
+		status = 'Common food updated. Select Search places to refresh the results.';
 	}
 
 	function handleOpenNowChange(openNow: boolean) {
 		filters = { ...filters, open_now: openNow };
 		clearResults();
 		markInterpretationEdited();
-		status = 'Availability updated. Select Search to refresh the results.';
+		status = 'Availability updated. Select Search places to refresh the results.';
 	}
 
 	function handleMinimumRatingChange(minimumRating: MinimumRating | null) {
 		filters = { ...filters, minimum_rating: minimumRating };
 		clearResults();
 		markInterpretationEdited();
-		status = 'Minimum rating updated. Select Search to refresh the results.';
+		status = 'Minimum rating updated. Select Search places to refresh the results.';
 	}
 
 	function handleDineInChange(dineIn: boolean) {
 		filters = { ...filters, dine_in: dineIn };
 		clearResults();
 		markInterpretationEdited();
-		status = 'Service options updated. Select Search to refresh the results.';
+		status = 'Service options updated. Select Search places to refresh the results.';
 	}
 
 	function handleTakeoutChange(takeout: boolean) {
 		filters = { ...filters, takeout };
 		clearResults();
 		markInterpretationEdited();
-		status = 'Service options updated. Select Search to refresh the results.';
+		status = 'Service options updated. Select Search places to refresh the results.';
 	}
 
 	function handleSortChange(event: Event) {
 		sort = (event.currentTarget as HTMLSelectElement).value as SearchSort;
 		clearResults();
 		markInterpretationEdited();
-		status = 'Sort order updated. Select Search to refresh the results.';
+		status = 'Sort order updated. Select Search places to refresh the results.';
 	}
 
 	function snapshotCriteria(): SearchCriteria | null {
@@ -236,8 +315,8 @@
 				unsupportedCount > 0
 					? `Request applied with ${unsupportedCount} unsupported ${
 							unsupportedCount === 1 ? 'criterion' : 'criteria'
-						}. Review what could not be applied, then select Search to use the supported criteria.`
-					: 'Request applied to the controls. Review or edit them, then select Search.';
+						}. Review what could not be applied, then select Search places to use the supported criteria.`
+					: 'Request applied to the controls. Review or edit them, then select Search places.';
 		} catch (error) {
 			if (error instanceof DOMException && error.name === 'AbortError') return;
 			console.error(error instanceof ApiError ? error.message : error);
@@ -288,7 +367,7 @@
 					? 'Google can confirm requested opening hours only for today and the next six days. Edit or remove the time preference.'
 					: error instanceof ApiError && error.status === 422
 						? 'Check the location, radius, filters, and requested time, then try again.'
-						: 'Search is temporarily unavailable. Select Search to try again.';
+						: 'Search is temporarily unavailable. Select Search places to try again.';
 		} finally {
 			searching = false;
 			controller = null;
@@ -306,22 +385,80 @@
 
 <main>
 	<header class="hero">
-		<p class="eyebrow">Phase 4</p>
+		<p class="eyebrow">Find food nearby</p>
 		<h1>FoodFind</h1>
 		<p class="intro">Nearby food discovery starts here.</p>
 	</header>
 
-	<section class="search-panel" aria-labelledby="search-heading">
+	<section class="search-panel location-panel" aria-labelledby="location-heading">
 		<div class="search-copy">
-			<h2 id="search-heading">Choose a location</h2>
+			<p class="step-label">Step 1 · Required</p>
+			<h2 id="location-heading">Choose where to search</h2>
 			<p id="location-help">
 				Start typing a place or address, or enter decimal coordinates as latitude, longitude.
 				Then choose how far around it to search.
 			</p>
 		</div>
+		<div class="location-actions">
+			<LocationPicker
+				disabled={busy}
+				{selectedLocation}
+				onLocationChange={handleLocationChange}
+				onStatus={(message) => (locationStatus = message)}
+				onClearResults={clearResults}
+			/>
+			<CurrentLocationButton
+				disabled={searching || interpreting}
+				onBusyChange={(value) => (locating = value)}
+				onLocation={handleCurrentLocation}
+				onStatus={(message) => (locationStatus = message)}
+			/>
+			<div class="radius-control">
+				<label for="radius-select">Radius</label>
+				<select
+					id="radius-select"
+					name="radius"
+					bind:value={radiusMeters}
+					disabled={busy}
+					onchange={handleRadiusChange}
+				>
+					{#if !standardRadii.includes(radiusMeters)}
+						<option value={radiusMeters}>{formatRadius(radiusMeters)}</option>
+					{/if}
+					<option value={500}>500 m</option>
+					<option value={1000}>1 km</option>
+					<option value={2000}>2 km</option>
+					<option value={5000}>5 km</option>
+				</select>
+			</div>
+		</div>
+		<p class="search-status" role="status" aria-live="polite">{locationStatus}</p>
+	</section>
+
+	<MapPanel
+		apiKey={env.PUBLIC_GOOGLE_MAPS_API_KEY ?? ''}
+		center={mapCenter}
+		{radiusMeters}
+		{places}
+		searchAreaSelected={selectedLocation !== null}
+		{selectedPlaceKey}
+		onPlaceSelect={handlePlaceSelect}
+		onLocationSelect={handleMapLocationSelect}
+		disabled={busy}
+	/>
+
+	<section class="search-panel criteria-panel" aria-labelledby="criteria-heading">
+		<div class="search-copy">
+			<p class="step-label">Step 2 · Choose what to find</p>
+			<h2 id="criteria-heading">Describe or refine your search</h2>
+			<p>
+				Use the optional smart search as a shortcut, then review the controls. At least one
+				place type is required; all other filters are optional.
+			</p>
+		</div>
 		<div class="search-controls">
 			<div class="smart-search-control">
-				<label for="smart-search-input">Smart search</label>
+				<label for="smart-search-input">Smart search <span>(optional)</span></label>
 				<textarea
 					id="smart-search-input"
 					name="smart-search"
@@ -344,53 +481,20 @@
 					</button>
 				</div>
 			</div>
-			<div class="search-action">
-				<LocationPicker
+
+			{#if interpretation}
+				<InterpretationSummary
+					{interpretation}
 					disabled={busy}
-					{initialLocation}
-					onLocationChange={handleLocationChange}
+					edited={interpretationEdited}
+					onAvailabilityChange={handleAvailabilityChange}
 					onStatus={(message) => (status = message)}
-					onClearResults={clearResults}
 				/>
-				<div class="radius-control">
-					<label for="radius-select">Radius</label>
-					<select
-						id="radius-select"
-						name="radius"
-						bind:value={radiusMeters}
-						disabled={busy}
-						onchange={handleRadiusChange}
-					>
-						{#if !standardRadii.includes(radiusMeters)}
-							<option value={radiusMeters}>{formatRadius(radiusMeters)}</option>
-						{/if}
-						<option value={500}>500 m</option>
-						<option value={1000}>1 km</option>
-						<option value={2000}>2 km</option>
-						<option value={5000}>5 km</option>
-					</select>
-				</div>
-				<div class="sort-control">
-					<label for="sort-select">Sort</label>
-					<select
-						id="sort-select"
-						name="sort"
-						bind:value={sort}
-						disabled={busy}
-						onchange={handleSortChange}
-					>
-						<option value="provider_default">Recommended</option>
-						<option value="distance">Distance</option>
-						<option value="rating">Rating</option>
-					</select>
-				</div>
-				<button
-					type="button"
-					disabled={busy || !selectedLocation || filters.place_types.length === 0}
-					onclick={search}
-				>
-					{searching ? 'Searching…' : 'Search'}
-				</button>
+			{/if}
+
+			<div class="manual-filter-heading">
+				<h3>Manual filters</h3>
+				<p>Review anything filled by smart search, or choose filters yourself.</p>
 			</div>
 			<PlaceTypeFilter
 				selected={filters.place_types}
@@ -424,17 +528,52 @@
 		</div>
 	</section>
 
-	{#if interpretation}
-		<InterpretationSummary
-			{interpretation}
-			disabled={busy}
-			edited={interpretationEdited}
-			onAvailabilityChange={handleAvailabilityChange}
-			onStatus={(message) => (status = message)}
-		/>
-	{/if}
-
-	<p class="search-status" role="status" aria-live="polite">{status}</p>
+	<section class="search-review" aria-labelledby="review-heading">
+		<div>
+			<p class="step-label">Step 3 · Review and search</p>
+			<h2 id="review-heading">Ready to find places?</h2>
+			<p>Location and place type are required. Filters and smart search are optional.</p>
+		</div>
+		<ul class="search-readiness" aria-label="Search requirements">
+			<li class:requirement-ready={selectedLocation !== null}>
+				<span>{selectedLocation ? 'Location ready' : 'Location required'}</span>
+				<small>{selectedLocation?.label ?? 'Choose an address, coordinates, map point, or current location.'}</small>
+			</li>
+			<li class:requirement-ready={filters.place_types.length > 0}>
+				<span>{filters.place_types.length > 0 ? 'Place type ready' : 'Place type required'}</span>
+				<small>
+					{filters.place_types.length > 0
+						? `${filters.place_types.length} selected`
+						: 'Choose at least one place type.'}
+				</small>
+			</li>
+		</ul>
+		<div class="search-submit-row">
+			<div class="sort-control">
+				<label for="sort-select">Sort results</label>
+				<select
+					id="sort-select"
+					name="sort"
+					bind:value={sort}
+					disabled={busy}
+					onchange={handleSortChange}
+				>
+					<option value="provider_default">Recommended</option>
+					<option value="distance">Distance</option>
+					<option value="rating">Rating</option>
+				</select>
+			</div>
+			<button
+				type="button"
+				class="search-submit-button"
+				disabled={busy || !selectedLocation || filters.place_types.length === 0}
+				onclick={search}
+			>
+				{searching ? 'Searching…' : 'Search places'}
+			</button>
+		</div>
+		<p class="search-status" role="status" aria-live="polite">{status}</p>
+	</section>
 
 	{#if places.length > 0}
 		<section id="results-section" aria-labelledby="results-heading">
@@ -444,7 +583,11 @@
 			</div>
 			<ul class="place-results">
 				{#each places as place (`${searchVersion}:${place.provider}:${place.provider_place_id}`)}
-					<PlaceCard {place} />
+					<PlaceCard
+						{place}
+						selected={selectedPlaceKey === placeKey(place)}
+						onSelect={() => handlePlaceSelect(placeKey(place))}
+					/>
 				{/each}
 			</ul>
 		</section>

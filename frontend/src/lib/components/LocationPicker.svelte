@@ -7,24 +7,56 @@
 
 	interface Props {
 		disabled: boolean;
-		initialLocation: SelectedLocation;
+		selectedLocation: SelectedLocation | null;
 		onLocationChange: (location: SelectedLocation | null) => void;
 		onStatus: (message: string) => void;
 		onClearResults: () => void;
 	}
 
-	let { disabled, initialLocation, onLocationChange, onStatus, onClearResults }: Props = $props();
-	let inputValue = $state(untrack(() => initialLocation.label));
+	let { disabled, selectedLocation, onLocationChange, onStatus, onClearResults }: Props = $props();
+	let inputValue = $state(untrack(() => selectedLocation?.label ?? ''));
 	let suggestions = $state<LocationSuggestion[]>([]);
 	let resolving = $state(false);
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let controller: AbortController | null = null;
 	let requestNumber = 0;
 	let sessionToken = crypto.randomUUID();
+	let lastEmittedLocation = '';
+
+	function locationSignature(location: SelectedLocation | null): string {
+		return location
+			? JSON.stringify({
+					label: location.label,
+					latitude: location.latitude,
+					longitude: location.longitude,
+					provider: location.provider ?? null,
+					provider_place_id: location.provider_place_id ?? null
+				})
+			: '';
+	}
+
+	function emitLocation(location: SelectedLocation | null) {
+		lastEmittedLocation = locationSignature(location);
+		onLocationChange(location);
+	}
 
 	onDestroy(() => {
 		if (timer !== null) clearTimeout(timer);
 		controller?.abort();
+	});
+
+	$effect(() => {
+		const signature = locationSignature(selectedLocation);
+		if (!selectedLocation || signature === lastEmittedLocation) return;
+		resetPendingRequest();
+		suggestions = [];
+		inputValue = selectedLocation.label;
+	});
+
+	$effect(() => {
+		if (!disabled) return;
+		resetPendingRequest();
+		suggestions = [];
 	});
 
 	function resetPendingRequest() {
@@ -45,12 +77,12 @@
 
 		const coordinates = parseCoordinates(inputValue);
 		if (coordinates) {
-			onLocationChange(coordinates);
-			onStatus('Coordinates are ready. Select Search when you are ready.');
+			emitLocation(coordinates);
+			onStatus('Coordinates are ready. Select Search places when you are ready.');
 			return;
 		}
 
-		onLocationChange(null);
+		emitLocation(null);
 		const query = inputValue.trim();
 		if (looksLikeCoordinatePair(query)) {
 			onStatus('Enter valid coordinates as latitude, longitude.');
@@ -97,14 +129,14 @@
 		try {
 			const location = await resolveLocation(suggestion, sessionToken, controller.signal);
 			inputValue = location.label;
-			onLocationChange(location);
+			emitLocation(location);
 			onClearResults();
-			onStatus('Location selected. Select Search when you are ready.');
+			onStatus('Location selected. Select Search places when you are ready.');
 			sessionToken = crypto.randomUUID();
 		} catch (error) {
 			if (error instanceof DOMException && error.name === 'AbortError') return;
 			console.error(error instanceof ApiError ? error.message : error);
-			onLocationChange(null);
+			emitLocation(null);
 			onStatus('That location could not be selected. Try another suggestion.');
 		} finally {
 			resolving = false;

@@ -875,3 +875,162 @@ The embedded map will use a separate browser-restricted Google Maps JavaScript A
 - Google Places results displayed on a map must be shown on a Google map under Google's Places policies.
 - Waiting for **Search** keeps location selection consistent with other location inputs and avoids an unexpected Places request.
 - A separate browser key can be restricted to approved website referrers and the Maps JavaScript API without exposing the server-side Places credential.
+
+## Google Maps frontend boundary
+
+- **Date:** 2026-07-26
+- **Status:** Accepted for Phase 5 Step 1
+
+### Decision
+
+FoodFind loads Maps JavaScript through the official `@googlemaps/js-api-loader` package behind a FoodFind-owned frontend `MapRenderer` port. The adapter configures the loader once, imports only the Maps library needed by the current step, and owns creation and cleanup of the Google map instance.
+
+The browser reads its separately restricted key from `PUBLIC_GOOGLE_MAPS_API_KEY` in `frontend/.env`. It uses Google's `DEMO_MAP_ID` during development so later steps can use Advanced Markers without requiring another setup action now. A FoodFind-specific map ID and HTTPS deployment remain future production-readiness work.
+
+Missing configuration and provider-load failures are visible component states. Automated tests inject a fake renderer or mock the loader and never request Google Maps.
+
+### Rationale
+
+- The port keeps Svelte component behavior testable without depending directly on Google's global API.
+- Loading through one shared promise prevents duplicate Maps JavaScript script requests within the page lifecycle.
+- The browser-only key can be restricted independently without exposing the server-side Places key.
+- Google recommends Advanced Markers over the deprecated legacy marker and requires a map ID for them.
+
+Current references: [Load the Maps JavaScript API](https://developers.google.com/maps/documentation/javascript/load-maps-js-api) and [Advanced Markers](https://developers.google.com/maps/documentation/javascript/advanced-markers/add-marker).
+
+## Provider-neutral map snapshots
+
+- **Date:** 2026-07-26
+- **Status:** Accepted for Phase 5 Step 2
+
+### Decision
+
+The Svelte page passes the map component its current selected coordinates, radius, and normalized place results. The component converts them into a provider-neutral `MapSnapshot` containing only centre coordinates, radius metres, and minimal marker summaries. The snapshot is rendered through the existing `MapRenderer` port.
+
+The Google adapter keeps one map and one radius circle alive. For every new snapshot it updates the circle, removes superseded result markers, creates Advanced Markers for current results, and fits the viewport around the radius plus returned coordinates. The search-centre marker remains visually above result markers.
+
+Map updates never call a FoodFind endpoint, the Google Places library, or Place Details. Location and radius edits update the map but retain the existing rule that only **Search** starts place discovery. Result markers remain non-interactive until Phase 5 Step 3 connects them to result cards.
+
+### Rationale
+
+- One immutable snapshot keeps the map consistent with the visible Svelte state.
+- Reusing the map and circle avoids unnecessary Maps JavaScript loads and lifecycle drift.
+- Passing only FoodFind-owned values keeps Google classes outside the component and page.
+- Removing old markers before adding current ones prevents stale or duplicated businesses.
+
+Google documents circle radius values in metres and `fitBounds` as fitting the viewport to supplied bounds: [Shapes and circles](https://developers.google.com/maps/documentation/javascript/shapes) and [Map reference](https://developers.google.com/maps/documentation/javascript/reference/map).
+
+## Synchronized map and result selection
+
+- **Date:** 2026-07-26
+- **Status:** Accepted for Phase 5 Step 3
+
+### Decision
+
+The page owns one selected-result key in the form `provider:provider_place_id`. It passes that key to the map snapshot and derives each result card's selected state from the same value. The Google adapter reports marker selection through the `MapRenderer` port rather than exposing Google marker objects to Svelte.
+
+Result markers use place-name titles and Google Advanced Markers' clickable behavior so they can be selected with a pointer or keyboard. The matching card has an explicit **Show on map** control. Selecting either view highlights both, and marker selection scrolls the card into view.
+
+Selection is presentation state only. It does not call place search or Place Details, and changing only the selection does not refit the map viewport. **View details** remains a separate explicit action.
+
+### Rationale
+
+- One page-owned key prevents marker and card selection from drifting apart.
+- Keeping provider events behind the existing port preserves a mockable, replaceable map boundary.
+- A dedicated card control avoids ambiguous clicks around links and detail actions.
+- Separating selection from data loading prevents accidental Google requests.
+
+Google documents accessible Advanced Markers through `gmpClickable`, titles, and the `gmp-click` event: [Accessible markers](https://developers.google.com/maps/documentation/javascript/advanced-markers/accessible-markers) and [Advanced Marker reference](https://developers.google.com/maps/documentation/javascript/reference/advanced-markers).
+
+## Explicit map location selection
+
+- **Date:** 2026-07-26
+- **Status:** Accepted for Phase 5 Step 4
+
+### Decision
+
+FoodFind changes the search location from a map click only after the user selects **Choose location on map**. The `MapRenderer` port reports the chosen coordinates without exposing Google objects. The page rounds them to six decimal places, creates the existing provider-neutral `SelectedLocation`, clears stale results, and updates the Location field.
+
+The selected point is initially labelled with its coordinates; FoodFind does not make a reverse-geocoding request. It recentres the existing map but waits for the user to select **Search** before requesting places. Panning, zooming, cancelling, and result-marker selection do not change the location.
+
+### Rationale
+
+- An explicit mode prevents ordinary map exploration from silently changing search criteria.
+- Reusing `SelectedLocation` keeps map, typed-coordinate, autocomplete, and future device locations on one lifecycle.
+- A coordinate label is immediately available without another paid or failure-prone provider request.
+- Six decimal places keep the label readable while retaining more precision than this search experience needs.
+
+Google's map click event supplies the clicked latitude and longitude and remains separate from marker clicks: [Map events](https://developers.google.com/maps/documentation/javascript/reference/map).
+
+## Browser geolocation boundary and accuracy
+
+- **Date:** 2026-07-26
+- **Status:** Accepted for Phase 5 Step 5
+
+### Decision
+
+FoodFind accesses `navigator.geolocation` through a frontend `DeviceLocationProvider` port only after the user selects **Use current location**. It makes one `getCurrentPosition()` request with `enableHighAccuracy: true`, `maximumAge: 0`, and a 10-second timeout. No permission check or position request occurs during rendering, reload, **near me** interpretation, or testing.
+
+While the request is pending, other search and criteria actions are disabled. A valid result enters the same coordinate-normalization lifecycle as map selection, clears stale results, recentres the existing map, and waits for **Search**.
+
+The browser's reported accuracy is compared with the selected radius. If it exceeds that radius, FoodFind still accepts the position but warns that it may be imprecise and keeps manual and map adjustment available. Permission denial, timeout, unavailable or unsupported geolocation, and invalid position data receive separate recovery guidance.
+
+### Rationale
+
+- A user action before geolocation protects privacy and prevents surprise permission prompts.
+- One shared coordinate lifecycle prevents typed, map, and device locations from diverging.
+- Locking other actions prevents search results for the old location from arriving after the new position.
+- Reported accuracy is an estimate; warning preserves user control without unnecessarily rejecting a usable position.
+- The port makes browser behavior replaceable and keeps automated tests independent of real devices.
+
+The browser API requires permission, supports the selected position options, and reports standardized failure codes: [W3C Geolocation](https://www.w3.org/TR/geolocation/) and [MDN `getCurrentPosition()`](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation/getCurrentPosition).
+
+## Phase 5 map lifecycle verification
+
+- **Date:** 2026-07-26
+- **Status:** Complete
+
+### Decision
+
+The Phase 5 lifecycle keeps one Google map instance for each mounted map panel. Reactive location, radius, result, result-selection, and map-selection state updates the existing instance through immutable snapshots. Panning and zooming have no application callback; only an explicit base-map click can report coordinates, and the component ignores it outside map-selection mode.
+
+Rendering and reloads make no Places, Place Details, Gemini, autocomplete, or device-geolocation request. Criteria edits, marker/card selection, map movement, accepted map points, and accepted device positions also make no place-search request; only **Search** does. Automated tests replace both Google Maps and browser geolocation.
+
+The final audit also established two ordering rules:
+
+- When location text becomes unresolved or invalid, the map retains the last valid centre instead of reverting to the default.
+- When another operation disables the location picker, any pending autocomplete or location-resolution request is immediately cancelled and its stale response is ignored.
+
+### Rationale
+
+- A stable map centre avoids displaying a location the user did not select.
+- Cancelling older location work prevents asynchronous responses from overwriting newer map or device choices.
+- Explicit request boundaries prevent reload loops and accidental provider costs.
+- Mocked external adapters make every lifecycle rule deterministic in automated tests.
+
+## Location-first search page and empty default
+
+- **Date:** 2026-07-26
+- **Status:** Accepted for Phase 6 Step 1
+
+### Decision
+
+FoodFind starts with no selected location and an empty Location field. Toronto City Hall remains only the map's neutral starting camera position and autocomplete bias; it is not valid search criteria and produces no centre marker or radius circle.
+
+The page order is:
+
+1. Location, **Use current location**, and Radius
+2. Map
+3. Optional smart search and manual criteria
+4. A readiness summary, Sort, and **Search places**
+
+The readiness summary identifies Location and Place type as required and labels other criteria optional. Location feedback stays near the location controls. The final search action remains disabled until both requirements are satisfied.
+
+Device geolocation uses **Current location** as its visible label while retaining normalized coordinates internally. It updates the Location field, map centre, marker, and radius without reverse geocoding or automatically searching.
+
+### Rationale
+
+- An empty field prevents an assumed Toronto search and makes the user's first decision explicit.
+- Keeping the map directly beside the location step makes its purpose and updates easier to understand.
+- A visible requirement summary explains a disabled action without forcing users to infer what is missing.
+- **Current location** communicates the source more clearly than raw coordinates; the coordinates remain available to the application.

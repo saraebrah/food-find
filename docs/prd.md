@@ -44,6 +44,9 @@ Example requests:
   - using the device's current location with permission
 - Every location input method must produce one visible, normalized selected location with a label and coordinates before a place search runs.
 - Ambiguous, invalid, or unsupported location input must not silently start a search from an assumed location.
+- The page must begin with an empty location field and must not assume Toronto or another location for a search.
+- Location and radius appear first, followed immediately by the map. Smart search and manual criteria come afterward.
+- Before submission, the page must clearly identify location and place type as required and all other criteria as optional.
 - Map
 - The search box must accept short keywords, such as `Thai food`.
 - The search box must accept natural-language requests, such as `Persian restaurants within three kilometres that are open now`.

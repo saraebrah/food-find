@@ -17,7 +17,7 @@ cd ..
 
 ## Google Places setup
 
-Google integration is server-side only. Add the key to `.env`:
+Google Places integration is server-side only. Add the key to `.env`:
 
 ```text
 GOOGLE_MAPS_API_KEY=your-key
@@ -40,6 +40,23 @@ python -m app.scripts.google_places_smoke
 ```
 
 Do not add this command to automated tests.
+
+## Google Maps setup
+
+The embedded map uses a separate browser key. Enable **Maps JavaScript API**, restrict the key to **Websites** and **Maps JavaScript API** only, and allow these local referrers:
+
+```text
+http://localhost:5173/*
+http://127.0.0.1:5173/*
+```
+
+Add it to `frontend/.env`:
+
+```text
+PUBLIC_GOOGLE_MAPS_API_KEY=your-browser-key
+```
+
+The key is visible in the browser by design; website and API restrictions protect it. Do not reuse the server-side Places key. Local development uses Google's `DEMO_MAP_ID`; create a FoodFind map ID and use HTTPS before deployment.
 
 ## Gemini setup
 
@@ -90,7 +107,7 @@ npm run test:e2e
 npm run build
 ```
 
-Frontend tests intercept or mock FoodFind API responses and never call Google.
+Frontend tests intercept or mock FoodFind API responses and replace the map renderer; they never call Google.
 
 ## Project documentation
 

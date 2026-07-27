@@ -59,6 +59,21 @@ describe('PlaceCard', () => {
 		expect(getPlaceDetails).not.toHaveBeenCalled();
 	});
 
+	it('selects the card for the map without fetching details', async () => {
+		const onSelect = vi.fn();
+		const rendered = render(PlaceCard, { place, selected: false, onSelect });
+
+		await page.getByRole('button', { name: 'Show Example Restaurant on map' }).click();
+		expect(onSelect).toHaveBeenCalledTimes(1);
+		expect(getPlaceDetails).not.toHaveBeenCalled();
+
+		await rendered.rerender({ place, selected: true, onSelect });
+		await expect
+			.element(page.getByRole('button', { name: 'Example Restaurant selected on map' }))
+			.toHaveAttribute('aria-pressed', 'true');
+		expect(getPlaceDetails).not.toHaveBeenCalled();
+	});
+
 	it('reveals deterministic match reasons without fetching details', async () => {
 		render(PlaceCard, { place });
 
