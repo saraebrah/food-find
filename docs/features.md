@@ -15,7 +15,7 @@ This file breaks the product into individual features, including expected behavi
 - The endpoint returns normalized FoodFind place objects.
 - Loading or reloading the home page does not run a search.
 - The Google client and server-side API key are created only when the search endpoint is called.
-- The home page provides an explicit **Search** button.
+- The home page provides an explicit **Search places** button.
 - While a search is active, the button is disabled to prevent duplicate requests.
 - Successful results appear in a list with name, category, address, straight-line distance, and provider attribution.
 - Businesses explicitly reported temporarily or permanently closed are excluded from results.
@@ -34,6 +34,24 @@ The active browser UI is a Svelte 5 and SvelteKit TypeScript application under `
 - The result count and search status are announced through visible text and an ARIA live region.
 
 These states remain explicit and recoverable in local Svelte component state without adding an external state-management library.
+
+## Search-page workflow
+
+### Current behavior
+
+- Step 1 presents the empty Location field, **Use current location**, and Radius before any smart-search or filter controls.
+- The map immediately follows the location controls. Until a location is selected, it shows a neutral Toronto starting view without a search-centre marker or radius circle.
+- Step 2 contains optional smart search followed by visible manual controls. Place type is explicitly identified as the only required criterion in this step.
+- Step 3 shows separate readiness states for Location and Place type, the optional sort control, and the final **Search places** action.
+- Location feedback appears beside the location controls; interpretation, filter, and search feedback appears beside the final action.
+- The same hierarchy stacks vertically on narrow screens.
+
+### Acceptance criteria
+
+- Location is the first interactive input, and its initial value is empty.
+- The DOM and visual order is Location and Radius, Map, Smart search and filters, then **Search places**.
+- **Search places** remains disabled until a location and at least one place type are ready.
+- Readiness text explains both missing requirements rather than relying only on a disabled button.
 
 ## Search feedback and recovery
 
@@ -63,7 +81,7 @@ No external state-management library is used. The Svelte page owns the search sn
 
 ### Current behavior
 
-- The location field initially contains Toronto City Hall coordinates as an editable default.
+- The location field is empty initially. Toronto City Hall coordinates are used only as the map's neutral starting camera position and autocomplete bias, not as selected search criteria.
 - Users can enter or paste decimal coordinates in `latitude, longitude` order.
 - The browser accepts latitude from `-90` through `90` and longitude from `-180` through `180`.
 - The browser normalizes valid values before sending them.
@@ -80,7 +98,68 @@ No external state-management library is used. The Svelte page owns the search sn
 - Loading, reloading, or editing the location does not search automatically.
 - The submitted radius is validated and included in the normalized search criteria.
 
-Map selection and device current location remain together in Phase 5.
+Map selection and device current location are available in Phase 5.
+
+## Embedded map
+
+### Current behavior
+
+- The Svelte frontend loads Maps JavaScript through the official loader and a FoodFind-owned `MapRenderer` port.
+- The browser uses `PUBLIC_GOOGLE_MAPS_API_KEY` from `frontend/.env`. The server-side Places key is never passed to the map.
+- The loader is configured once per page lifecycle with website-referrer authorization and Google's `DEMO_MAP_ID`.
+- The map has explicit loading, missing-key, ready, and load-failure states.
+- Before location selection, the map shows a neutral Toronto starting view without a search-centre marker or radius circle.
+- After location selection, the map shows the selected search centre, a non-editable circle whose radius is measured in metres, and one Advanced Marker for every current result.
+- The viewport fits the complete radius boundary and any returned result coordinates.
+- Location, radius, and result changes produce a provider-neutral map snapshot and update the existing map instance. They do not recreate the map.
+- Changing search criteria clears stale result markers through the existing page lifecycle. Successful search results then replace them with the new markers.
+- Each result uses `provider:provider_place_id` as its shared map/list identity.
+- Selecting a result marker or its card's **Show on map** control highlights both views. Marker selection scrolls the matching card into view without changing the map viewport.
+- Result markers have place-name titles and keyboard-accessible click behavior. The selected marker is visually emphasized.
+- Selecting a marker or card makes no search or detail request. **View details** remains the only action that loads place details.
+- Clearing stale results also clears the selected result.
+- **Choose location on map** starts an explicit one-point selection mode. Normal map use does not change the search centre.
+- A chosen point becomes the existing `SelectedLocation` shape with coordinates rounded to six decimal places and a coordinate label shown in the Location field.
+- Choosing a map point clears stale results, recentres the search area, and waits for **Search**. It does not reverse-geocode the point or call Places, Place Details, or Gemini.
+- Panning, zooming, cancelling map selection, and clicking a result marker do not change the search location.
+- **Use current location** makes one browser geolocation request only after the user selects it. Rendering, reloading, and interpreting **near me** never request device permission.
+- While that one-shot request is pending, other criteria and search actions are disabled so an old-location search cannot race the new position.
+- A valid device position becomes the same normalized `SelectedLocation` used by map selection, with the visible label **Current location**. It clears stale results, recentres the map and search-centre marker, and waits for **Search places** without reverse geocoding or calling Google Places.
+- FoodFind requests a fresh high-accuracy position with a 10-second timeout. If the browser-reported accuracy is wider than the selected search radius, FoodFind accepts the point but warns the user to adjust it manually or on the map if needed.
+- Permission denial, timeout, unavailable position, unsupported browser behavior, and invalid browser data show distinct recovery guidance while keeping manual and map selection available.
+- Loading the embedded map is a Maps JavaScript map load, but it does not call FoodFind's place-search or place-detail endpoints.
+
+### Acceptance criteria
+
+- A missing browser key displays configuration guidance and does not invoke the map renderer.
+- A loader rejection displays a safe error without exposing provider details in the page.
+- One map panel mount requests the Maps library once and creates one map instance.
+- The loader imports the Maps and Advanced Marker libraries once, regardless of later snapshot updates.
+- Every rendered result produces one current marker, and superseded markers are removed from the map.
+- Radius and location edits update the circle and viewport without starting a place search.
+- A completed explicit search updates map markers from the same normalized results shown in the list.
+- Marker and card selection stay synchronized through their shared identity.
+- Selection alone does not refit the viewport or call FoodFind's search or detail endpoints.
+- Result markers and card selection controls can be operated without a mouse.
+- A base-map click changes the location only while explicit map-selection mode is active.
+- The map-selected coordinate label appears in the existing Location field, old results disappear, and only a later **Search** submits the new location.
+- Panning and zooming alone never mutate the selected location or start a request.
+- Device permission is requested only from an explicit **Use current location** action.
+- A successful device position updates the existing Location field and map but makes no Places, Place Details, or Gemini request.
+- Search and criteria actions remain unavailable until the one-shot device request succeeds or fails.
+- Poor reported accuracy is visible, and every failure state points back to manual or map location selection.
+- Automated tests inject a fake `MapRenderer` and never load Google Maps.
+- Automated tests inject a fake geolocation provider and never request real browser permission.
+- Rendering the page still makes zero Google Places, Place Details, or Gemini requests.
+
+### Remaining limitations
+
+- Map-selected points initially show coordinates rather than a resolved street address. Device selection uses **Current location** without reverse geocoding.
+- Device accuracy depends on the browser, hardware, and operating-system settings; high accuracy is a preference rather than a guarantee.
+- A reload resets the location to empty and restores the neutral map view and default criteria. It does not repeat the previous search.
+- The map displays only the current first Text Search batch, which is limited to at most 20 candidates in this version.
+- Deployment still requires HTTPS and a FoodFind map ID; local development continues to use `DEMO_MAP_ID`.
+- Location selection intentionally waits for **Search**. Immediate search remains a possible future enhancement.
 
 ## Search radius
 

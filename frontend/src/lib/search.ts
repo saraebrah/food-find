@@ -1,4 +1,28 @@
-import type { Place, SelectedLocation } from './types';
+import type { Coordinates, Place, SelectedLocation } from './types';
+
+export function selectedLocationFromCoordinates(
+	coordinates: Coordinates
+): SelectedLocation | null {
+	const { latitude, longitude } = coordinates;
+	if (
+		!Number.isFinite(latitude) ||
+		!Number.isFinite(longitude) ||
+		latitude < -90 ||
+		latitude > 90 ||
+		longitude < -180 ||
+		longitude > 180
+	) {
+		return null;
+	}
+
+	const roundedLatitude = Number(latitude.toFixed(6));
+	const roundedLongitude = Number(longitude.toFixed(6));
+	return {
+		label: `${roundedLatitude}, ${roundedLongitude}`,
+		latitude: roundedLatitude,
+		longitude: roundedLongitude
+	};
+}
 
 export function parseCoordinates(value: string): SelectedLocation | null {
 	const parts = value.split(',');

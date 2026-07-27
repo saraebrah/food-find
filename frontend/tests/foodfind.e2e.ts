@@ -1,4 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function chooseTorontoLocation(page: Page) {
+	await page
+		.getByRole('combobox', { name: 'Location' })
+		.fill('43.6532, -79.3832');
+}
 
 test('searches explicitly and caches an opened place detail response', async ({ page }) => {
 	let searchRequests = 0;
@@ -52,10 +58,14 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	});
 
 	await page.goto('/');
+	await expect(
+		page.getByText('Google Maps is not configured for this browser.')
+	).toBeVisible();
 	expect(searchRequests).toBe(0);
 	expect(detailRequests).toBe(0);
 
-	await page.getByRole('button', { name: 'Search' }).click();
+	await chooseTorontoLocation(page);
+	await page.getByRole('button', { name: 'Search places' }).click();
 	await expect(page.getByRole('heading', { name: 'Browser Test Cafe' })).toBeVisible();
 	expect(searchRequests).toBe(1);
 	expect(searchBodies[0]).toMatchObject({
@@ -94,7 +104,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	await page.getByLabel('Minimum rating').selectOption('4.5');
 	await page.getByLabel('Sort').selectOption('rating');
 	expect(searchRequests).toBe(1);
-	await page.getByRole('button', { name: 'Search' }).click();
+	await page.getByRole('button', { name: 'Search places' }).click();
 	await expect(page.getByRole('heading', { name: 'Browser Test Cafe' })).toBeVisible();
 	expect(searchRequests).toBe(2);
 	expect(searchBodies[1]).toMatchObject({
@@ -165,6 +175,7 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 	expect(interpretationRequests).toBe(0);
 	expect(searchRequests).toBe(0);
 
+	await chooseTorontoLocation(page);
 	await page
 		.getByRole('textbox', { name: 'Smart search' })
 		.fill('good rated Persian restaurant serving kebab near me tonight');
@@ -183,7 +194,7 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 	expect(interpretationRequests).toBe(1);
 	expect(searchRequests).toBe(0);
 
-	await page.getByRole('button', { name: 'Search' }).click();
+	await page.getByRole('button', { name: 'Search places' }).click();
 	expect(interpretationRequests).toBe(1);
 	expect(searchRequests).toBe(1);
 	expect(searchBodies[0]).toMatchObject({
@@ -226,6 +237,7 @@ test('does not retry failed interpretation or empty place search automatically',
 	});
 
 	await page.goto('/');
+	await chooseTorontoLocation(page);
 	await page
 		.getByRole('textbox', { name: 'Smart search' })
 		.fill('a request the interpreter cannot safely apply');
@@ -239,7 +251,7 @@ test('does not retry failed interpretation or empty place search automatically',
 	expect(interpretationRequests).toBe(1);
 	expect(searchRequests).toBe(0);
 
-	await page.getByRole('button', { name: 'Search' }).click();
+	await page.getByRole('button', { name: 'Search places' }).click();
 	await expect(
 		page.getByText(
 			'No places matched the current criteria. Try removing a filter, choosing a larger radius, or selecting another location.'
@@ -251,4 +263,71 @@ test('does not retry failed interpretation or empty place search automatically',
 	await page.reload();
 	expect(interpretationRequests).toBe(1);
 	expect(searchRequests).toBe(1);
+});
+
+test('uses the browser position only after an explicit current-location action', async ({
+	context,
+	page
+}) => {
+	let searchRequests = 0;
+	await page.route('**/api/places/search', async (route) => {
+		searchRequests += 1;
+		await route.fulfill({ contentType: 'application/json', body: '[]' });
+	});
+	await context.grantPermissions(['geolocation'], {
+		origin: 'http://127.0.0.1:4173'
+	});
+	await context.setGeolocation({
+		latitude: 43.65012349,
+		longitude: -79.39098751,
+		accuracy: 25
+	});
+
+	await page.goto('/');
+	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveValue('');
+	expect(searchRequests).toBe(0);
+
+	await page.getByRole('button', { name: 'Use current location' }).click();
+
+	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveValue(
+		'Current location'
+	);
+	await expect(
+		page.getByText('Current location selected. Select Search places when you are ready.')
+	).toBeVisible();
+	expect(searchRequests).toBe(0);
+});
+
+test('keeps the location-first workflow in vertical order on a mobile viewport', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/');
+
+	const locationBox = await page
+		.getByRole('combobox', { name: 'Location' })
+		.boundingBox();
+	const mapBox = await page.locator('.map-panel').boundingBox();
+	const smartSearchBox = await page
+		.getByRole('textbox', { name: 'Smart search' })
+		.boundingBox();
+	const searchButtonBox = await page
+		.getByRole('button', { name: 'Search places' })
+		.boundingBox();
+
+	expect(locationBox).not.toBeNull();
+	expect(mapBox).not.toBeNull();
+	expect(smartSearchBox).not.toBeNull();
+	expect(searchButtonBox).not.toBeNull();
+	expect(locationBox!.y).toBeLessThan(mapBox!.y);
+	expect(mapBox!.y).toBeLessThan(smartSearchBox!.y);
+	expect(smartSearchBox!.y).toBeLessThan(searchButtonBox!.y);
+	await expect(page.getByText('Location required')).toBeVisible();
+	await expect(page.getByText('Place type ready')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Search places' })).toBeDisabled();
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= window.innerWidth
+		)
+	).toBe(true);
 });

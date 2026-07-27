@@ -6,10 +6,17 @@
 	import type { Place, PlaceDetails } from '$lib/types';
 	import PlaceDetailsPanel from './PlaceDetailsPanel.svelte';
 
-	let { place }: { place: Place } = $props();
+	interface Props {
+		place: Place;
+		selected?: boolean;
+		onSelect?: () => void;
+	}
+
+	let { place, selected = false, onSelect = () => {} }: Props = $props();
 	const componentId = $props.id();
 	const detailsId = `${componentId}-details`;
 	const directions = $derived(directionsHref(place));
+	let cardElement: HTMLLIElement;
 	let details = $state<PlaceDetails | null>(null);
 	let detailsOpen = $state(false);
 	let detailsLoading = $state(false);
@@ -17,6 +24,10 @@
 	let detailsController: AbortController | null = null;
 
 	onDestroy(() => detailsController?.abort());
+
+	$effect(() => {
+		if (selected) cardElement?.scrollIntoView({ block: 'nearest' });
+	});
 
 	async function toggleDetails() {
 		if (detailsOpen && !detailsError) {
@@ -47,8 +58,25 @@
 	}
 </script>
 
-<li class="place-card">
-	<h3 class="place-name">{place.name}</h3>
+<li
+	class="place-card"
+	class:place-card-selected={selected}
+	bind:this={cardElement}
+>
+	<div class="place-card-heading">
+		<h3 class="place-name">{place.name}</h3>
+		<button
+			type="button"
+			class="place-select-button"
+			aria-label={selected
+				? `${place.name} selected on map`
+				: `Show ${place.name} on map`}
+			aria-pressed={selected}
+			onclick={onSelect}
+		>
+			{selected ? 'Selected on map' : 'Show on map'}
+		</button>
+	</div>
 	<p class:place-category={place.category || place.category_code} class:place-missing={!place.category && !place.category_code}>
 		{place.category || place.category_code || 'Category unavailable'}
 	</p>

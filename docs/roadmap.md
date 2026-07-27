@@ -118,30 +118,49 @@ The LLM resolves language into a validated FoodFind intent; it does not call Goo
 ## Phase 5 — Map and current location
 
 - **Priority:** P0
-- **Status:** Not started
+- **Status:** Complete
 
-1. Display the current results on a map.
-2. Keep map markers and result-list items connected.
-3. Support selecting a business from either view.
-4. Let users select or adjust the search location on the map.
-5. Add **Use current location** and request browser permission only after the user selects it.
-6. Set the selected location and recenter around the user's position. Wait for the user to press **Search**.
-7. Handle denied, inaccurate, or unavailable location while keeping manual selection as a fallback.
-8. Update the map when the location or radius changes.
+1. [x] Establish the Google Maps foundation.
+   - Load Maps JavaScript once through a frontend adapter.
+   - Handle missing-key, loading, and map-load failures.
+   - Prepare for Google Advanced Markers with the development map ID.
+   - Initializing or rendering the map must not make a Places search request.
+2. [x] Display the search area and current results.
+   - Show the selected search centre and radius boundary.
+   - Add a marker for every returned result and fit the viewport to the relevant area.
+   - Update the map when the location, radius, or completed search results change.
+3. [x] Connect map markers and result cards.
+   - Use provider and place ID as their shared identity.
+   - Selecting either view highlights the corresponding marker and card.
+   - Marker selection does not fetch details; **View details** remains explicit.
+4. [x] Let users select or adjust the search location on the map.
+   - Convert the chosen point into the existing normalized selected-location model.
+   - Use coordinates as its initial visible label, clear stale results, and wait for **Search**.
+   - Panning and zooming alone never change the search location or trigger a search.
+5. [x] Add **Use current location**.
+   - Request browser permission only after the user selects it.
+   - On success, set the normalized location, clear stale results, and recenter. Wait for **Search**.
+   - Handle denial, timeout, unavailable location, and poor accuracy while keeping manual selection available.
+   - **Near me** continues to mean the visible selected location and never silently requests device permission.
+6. [x] Verify the complete map lifecycle.
+   - Avoid recreating the map unnecessarily.
+   - Confirm reloads, map movement, marker selection, and criteria edits make no Places request.
+   - Mock Google Maps and browser geolocation in automated tests.
+   - Document completed behavior and remaining limitations.
 
-This phase completes the spatial experience after the result criteria are useful and proven. Every map click and device location still produces the same normalized selected-location model used by coordinates and autocomplete.
+This phase completes the spatial experience after the result criteria are useful and proven. Every accepted map point and device location produces the same normalized selected-location model used by coordinates and autocomplete.
 
 ## Phase 6 — First-version cleanup
 
 - **Priority:** P1
-- **Status:** Not started
+- **Status:** In progress
 
-1. Improve desktop and mobile layouts.
-2. Add keyboard and accessibility support.
-3. Handle missing provider fields consistently.
-4. Add compliant short-lived caching if useful.
-5. Verify the complete journey with automated tests.
-6. Fix usability and performance problems found during real use.
+1. [x] Improve desktop and mobile layouts, beginning with a location-first search flow, map placement, required-criteria guidance, and a responsive final search action.
+2. [ ] Add keyboard and accessibility support.
+3. [ ] Handle missing provider fields consistently.
+4. [ ] Add compliant short-lived caching if useful.
+5. [ ] Verify the complete journey with automated tests.
+6. [ ] Fix usability and performance problems found during real use.
 
 This phase improves the complete working flow after the core behavior is established.
 
@@ -205,6 +224,15 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 - Reservation integration
 - Native mobile application
 
+### Map production readiness
+
+- Device geolocation works on localhost during development but requires HTTPS when FoodFind is deployed.
+- Google Advanced Markers require a map ID. Use Google's `DEMO_MAP_ID` during development, then create and configure a FoodFind map ID before deployment.
+
+### Dependency maintenance
+
+- Upgrade `google-genai` before moving to Python 3.17 so it no longer relies on Python's deprecated internal `_UnionGenericAlias`.
+
 ## Current next task
 
-Phase 4 is complete. Review smart search end to end, then start Phase 5 Step 1 by displaying the current results on a map.
+Phase 6 Step 1 is complete. Start Step 2 by auditing and improving keyboard and accessibility support.

@@ -12,12 +12,31 @@ import {
 import type { Place, SearchInterpretation } from '$lib/types';
 import FoodFindPage from './+page.svelte';
 
+const mapRenderer = vi.hoisted(() => ({
+	mount: vi.fn(),
+	render: vi.fn()
+}));
+const deviceLocationProvider = vi.hoisted(() => ({
+	getCurrentLocation: vi.fn()
+}));
+
+vi.mock('$env/dynamic/public', () => ({
+	env: { PUBLIC_GOOGLE_MAPS_API_KEY: 'test-browser-key' }
+}));
+
 vi.mock('$lib/api', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/api')>()),
 	autocompleteLocations: vi.fn(),
 	interpretSearch: vi.fn(),
 	resolveLocation: vi.fn(),
 	searchPlaces: vi.fn()
+}));
+
+vi.mock('$lib/maps/google-maps-renderer', () => ({
+	createGoogleMapsRenderer: vi.fn(() => mapRenderer)
+}));
+vi.mock('$lib/geolocation/browser-geolocation-provider', () => ({
+	createBrowserGeolocationProvider: vi.fn(() => deviceLocationProvider)
 }));
 
 const placeResult: Place = {
@@ -82,16 +101,31 @@ const interpretation: SearchInterpretation = {
 	timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 };
 
+async function chooseTorontoLocation() {
+	await page
+		.getByRole('combobox', { name: 'Location' })
+		.fill('43.6532, -79.3832');
+}
+
 describe('FoodFind page request lifecycle', () => {
 	beforeEach(() => {
+		mapRenderer.render.mockReset();
+		mapRenderer.mount
+			.mockReset()
+			.mockResolvedValue({ destroy: vi.fn(), render: mapRenderer.render });
 		vi.mocked(searchPlaces).mockReset().mockResolvedValue([placeResult]);
 		vi.mocked(autocompleteLocations).mockReset().mockResolvedValue([]);
 		vi.mocked(interpretSearch).mockReset().mockResolvedValue(interpretation);
 		vi.mocked(resolveLocation).mockReset();
+		deviceLocationProvider.getCurrentLocation.mockReset().mockResolvedValue({
+			coordinates: { latitude: 43.65, longitude: -79.39 },
+			accuracyMeters: 25
+		});
 	});
 
 	it('applies one interpretation and keeps later edits local', async () => {
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
 		await page
 			.getByRole('textbox', { name: 'Smart search' })
@@ -131,7 +165,7 @@ describe('FoodFind page request lifecycle', () => {
 		await expect
 			.element(
 				page.getByText(
-					'Request applied with 1 unsupported criterion. Review what could not be applied, then select Search to use the supported criteria.'
+					'Request applied with 1 unsupported criterion. Review what could not be applied, then select Search places to use the supported criteria.'
 				)
 			)
 			.toBeVisible();
@@ -147,7 +181,7 @@ describe('FoodFind page request lifecycle', () => {
 			.element(page.getByText('You edited the interpreted criteria.'))
 			.toBeVisible();
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('button', { name: 'Search places' }).click();
 		expect(interpretSearch).toHaveBeenCalledTimes(1);
 		expect(searchPlaces).toHaveBeenCalledTimes(1);
 		expect(searchPlaces).toHaveBeenCalledWith(
@@ -170,6 +204,7 @@ describe('FoodFind page request lifecycle', () => {
 	it('keeps current criteria after one failed interpretation without retrying', async () => {
 		vi.mocked(interpretSearch).mockRejectedValueOnce(new ApiError(502));
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
 		await page
 			.getByRole('textbox', { name: 'Smart search' })
@@ -194,18 +229,19 @@ describe('FoodFind page request lifecycle', () => {
 			.mockRejectedValueOnce(new ApiError(502))
 			.mockResolvedValueOnce([]);
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('button', { name: 'Search places' }).click();
 		await expect
 			.element(
 				page.getByText(
-					'Search is temporarily unavailable. Select Search to try again.'
+					'Search is temporarily unavailable. Select Search places to try again.'
 				)
 			)
 			.toBeVisible();
 		expect(searchPlaces).toHaveBeenCalledTimes(1);
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('button', { name: 'Search places' }).click();
 		await expect
 			.element(
 				page.getByText(
@@ -219,8 +255,9 @@ describe('FoodFind page request lifecycle', () => {
 	it('explains the unsupported seven-day availability range', async () => {
 		vi.mocked(searchPlaces).mockRejectedValueOnce(new ApiError(400));
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('button', { name: 'Search places' }).click();
 
 		await expect
 			.element(
@@ -232,32 +269,185 @@ describe('FoodFind page request lifecycle', () => {
 		expect(searchPlaces).toHaveBeenCalledTimes(1);
 	});
 
-	it('does not request Google-backed data on render or radius changes', async () => {
+	it('updates the map without requesting Places or Gemini on render or radius changes', async () => {
 		render(FoodFindPage);
 
-		await expect.element(page.getByRole('button', { name: 'Search' })).toBeVisible();
+		await expect
+			.element(page.getByRole('combobox', { name: 'Location' }))
+			.toHaveValue('');
+		await expect
+			.element(page.getByRole('button', { name: 'Search places' }))
+			.toBeDisabled();
+		await expect.element(page.getByText('Location required')).toBeVisible();
+		await expect.element(page.getByText('Place type ready')).toBeVisible();
+		const locationInput = await page
+			.getByRole('combobox', { name: 'Location' })
+			.element();
+		const mapRegion = await page
+			.getByRole('region', { name: 'FoodFind map' })
+			.element();
+		const smartSearch = await page
+			.getByRole('textbox', { name: 'Smart search' })
+			.element();
+		const searchButton = await page
+			.getByRole('button', { name: 'Search places' })
+			.element();
+		expect(
+			locationInput.compareDocumentPosition(mapRegion) &
+				Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+		expect(
+			mapRegion.compareDocumentPosition(smartSearch) &
+				Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+		expect(
+			smartSearch.compareDocumentPosition(searchButton) &
+				Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+		expect(mapRenderer.mount).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith({
+				center: { latitude: 43.6532, longitude: -79.3832 },
+				radiusMeters: 1_000,
+				places: [],
+				selectedPlaceKey: null,
+				locationSelectionEnabled: false,
+				searchAreaSelected: false
+			})
+		);
 		expect(searchPlaces).not.toHaveBeenCalled();
 		expect(interpretSearch).not.toHaveBeenCalled();
 		expect(autocompleteLocations).not.toHaveBeenCalled();
+		expect(deviceLocationProvider.getCurrentLocation).not.toHaveBeenCalled();
 
 		await page.getByLabelText('Radius').selectOptions('2000');
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith({
+				center: { latitude: 43.6532, longitude: -79.3832 },
+				radiusMeters: 2_000,
+				places: [],
+				selectedPlaceKey: null,
+				locationSelectionEnabled: false,
+				searchAreaSelected: false
+			})
+		);
 		expect(searchPlaces).not.toHaveBeenCalled();
 
 		await page.getByRole('combobox', { name: 'Location' }).fill('43.7, -79.4');
 		expect(autocompleteLocations).not.toHaveBeenCalled();
-		await expect.element(page.getByRole('button', { name: 'Search' })).toBeEnabled();
+		await expect
+			.element(page.getByRole('button', { name: 'Search places' }))
+			.toBeEnabled();
+		await expect.element(page.getByText('Location ready')).toBeVisible();
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith({
+				center: { latitude: 43.7, longitude: -79.4 },
+				radiusMeters: 2_000,
+				places: [],
+				selectedPlaceKey: null,
+				locationSelectionEnabled: false,
+				searchAreaSelected: true
+			})
+		);
 
 		await page.getByRole('combobox', { name: 'Location' }).fill('91, -79.4');
-		await expect.element(page.getByRole('button', { name: 'Search' })).toBeDisabled();
+		await expect
+			.element(page.getByRole('button', { name: 'Search places' }))
+			.toBeDisabled();
+		expect(mapRenderer.render).toHaveBeenLastCalledWith({
+			center: { latitude: 43.7, longitude: -79.4 },
+			radiusMeters: 2_000,
+			places: [],
+			selectedPlaceKey: null,
+			locationSelectionEnabled: false,
+			searchAreaSelected: false
+		});
 		expect(searchPlaces).not.toHaveBeenCalled();
 		expect(interpretSearch).not.toHaveBeenCalled();
 	});
 
-	it('takes one criteria snapshot and makes one request for an explicit search', async () => {
+	it('cancels stale autocomplete as soon as device location begins', async () => {
+		let resolveAutocomplete:
+			| ((suggestions: Array<{
+					provider: string;
+					provider_place_id: string;
+					label: string;
+			  }>) => void)
+			| undefined;
+		let resolveDeviceLocation:
+			| ((location: {
+					coordinates: { latitude: number; longitude: number };
+					accuracyMeters: number;
+			  }) => void)
+			| undefined;
+		vi.mocked(autocompleteLocations).mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveAutocomplete = resolve;
+				})
+		);
+		deviceLocationProvider.getCurrentLocation.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveDeviceLocation = resolve;
+				})
+		);
 		render(FoodFindPage);
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('combobox', { name: 'Location' }).fill('Toronto');
+		await vi.waitFor(() => expect(autocompleteLocations).toHaveBeenCalledTimes(1));
+		const autocompleteSignal = vi.mocked(autocompleteLocations).mock.calls[0][2];
+
+		await page.getByRole('button', { name: 'Use current location' }).click();
+		expect(autocompleteSignal).toBeInstanceOf(AbortSignal);
+		expect(autocompleteSignal?.aborted).toBe(true);
+		await expect
+			.element(page.getByRole('button', { name: 'Finding location…' }))
+			.toBeDisabled();
+
+		resolveDeviceLocation?.({
+			coordinates: { latitude: 43.65, longitude: -79.39 },
+			accuracyMeters: 25
+		});
+		resolveAutocomplete?.([
+			{
+				provider: 'google',
+				provider_place_id: 'stale-place',
+				label: 'Stale Toronto suggestion'
+			}
+		]);
+
+		await expect
+			.element(page.getByRole('combobox', { name: 'Location' }))
+			.toHaveValue('Current location');
+		await expect
+			.element(page.getByText('Stale Toronto suggestion'))
+			.not.toBeInTheDocument();
+		expect(searchPlaces).not.toHaveBeenCalled();
+	});
+
+	it('takes one criteria snapshot and makes one request for an explicit search', async () => {
+		render(FoodFindPage);
+		await chooseTorontoLocation();
+
+		await page.getByRole('button', { name: 'Search places' }).click();
 		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith({
+				center: { latitude: 43.6532, longitude: -79.3832 },
+				radiusMeters: 1_000,
+				places: [
+					{
+						key: 'google:place-1',
+						title: 'Test Kitchen',
+						coordinates: { latitude: 43.6525, longitude: -79.3817 }
+					}
+				],
+				selectedPlaceKey: null,
+				locationSelectionEnabled: false,
+				searchAreaSelected: true
+			})
+		);
 		expect(searchPlaces).toHaveBeenCalledTimes(1);
 		expect(searchPlaces).toHaveBeenCalledWith(
 			{
@@ -290,8 +480,180 @@ describe('FoodFind page request lifecycle', () => {
 		expect(searchPlaces).toHaveBeenCalledTimes(1);
 	});
 
+	it('synchronizes marker and card selection without fetching details', async () => {
+		render(FoodFindPage);
+		await chooseTorontoLocation();
+		await page.getByRole('button', { name: 'Search places' }).click();
+		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
+
+		const mountOptions = mapRenderer.mount.mock.calls[0][1];
+		mountOptions.onPlaceSelect('google:place-1');
+
+		await expect
+			.element(page.getByRole('button', { name: 'Test Kitchen selected on map' }))
+			.toHaveAttribute('aria-pressed', 'true');
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith(
+				expect.objectContaining({ selectedPlaceKey: 'google:place-1' })
+			)
+		);
+		expect(searchPlaces).toHaveBeenCalledTimes(1);
+
+		await page.getByRole('button', { name: 'Test Kitchen selected on map' }).click();
+		expect(searchPlaces).toHaveBeenCalledTimes(1);
+	});
+
+	it('sets a map location, clears stale results, and waits for Search', async () => {
+		render(FoodFindPage);
+		await chooseTorontoLocation();
+		await page.getByRole('button', { name: 'Search places' }).click();
+		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
+
+		const mountOptions = mapRenderer.mount.mock.calls[0][1];
+		await page.getByRole('button', { name: 'Choose location on map' }).click();
+		mountOptions.onLocationSelect({
+			latitude: 43.65012349,
+			longitude: -79.39098751
+		});
+
+		await expect
+			.element(page.getByRole('combobox', { name: 'Location' }))
+			.toHaveValue('43.650123, -79.390988');
+		await expect
+			.element(page.getByRole('heading', { name: 'Test Kitchen' }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(
+				page.getByText('Map location selected. Select Search places when you are ready.')
+			)
+			.toBeVisible();
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith({
+				center: { latitude: 43.650123, longitude: -79.390988 },
+				radiusMeters: 1_000,
+				places: [],
+				selectedPlaceKey: null,
+				locationSelectionEnabled: false,
+				searchAreaSelected: true
+			})
+		);
+		expect(searchPlaces).toHaveBeenCalledTimes(1);
+		expect(interpretSearch).not.toHaveBeenCalled();
+		expect(autocompleteLocations).not.toHaveBeenCalled();
+
+		await page.getByRole('button', { name: 'Search places' }).click();
+		expect(searchPlaces).toHaveBeenCalledTimes(2);
+		expect(searchPlaces).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				location: {
+					label: '43.650123, -79.390988',
+					latitude: 43.650123,
+					longitude: -79.390988
+				}
+			}),
+			expect.any(AbortSignal)
+		);
+	});
+
+	it('uses one device position, warns about poor accuracy, and waits for Search', async () => {
+		let resolveDeviceLocation:
+			| ((location: {
+					coordinates: { latitude: number; longitude: number };
+					accuracyMeters: number;
+			  }) => void)
+			| undefined;
+		deviceLocationProvider.getCurrentLocation.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					resolveDeviceLocation = resolve;
+				})
+		);
+		render(FoodFindPage);
+		await chooseTorontoLocation();
+		await page.getByRole('button', { name: 'Search places' }).click();
+		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
+		expect(deviceLocationProvider.getCurrentLocation).not.toHaveBeenCalled();
+
+		await page.getByRole('button', { name: 'Use current location' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Finding location…' }))
+			.toBeDisabled();
+		await expect.element(page.getByRole('button', { name: 'Search places' })).toBeDisabled();
+		expect(deviceLocationProvider.getCurrentLocation).toHaveBeenCalledTimes(1);
+
+		resolveDeviceLocation?.({
+			coordinates: {
+				latitude: 43.65012349,
+				longitude: -79.39098751
+			},
+			accuracyMeters: 2_500
+		});
+
+		await expect
+			.element(page.getByRole('combobox', { name: 'Location' }))
+			.toHaveValue('Current location');
+		await expect
+			.element(page.getByText(/browser estimates accuracy within 2.5 km/))
+			.toBeVisible();
+		await expect
+			.element(page.getByRole('heading', { name: 'Test Kitchen' }))
+			.not.toBeInTheDocument();
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					center: { latitude: 43.650123, longitude: -79.390988 },
+					places: []
+				})
+			)
+		);
+		expect(searchPlaces).toHaveBeenCalledTimes(1);
+		expect(interpretSearch).not.toHaveBeenCalled();
+		expect(autocompleteLocations).not.toHaveBeenCalled();
+
+		await page.getByRole('button', { name: 'Search places' }).click();
+		expect(searchPlaces).toHaveBeenCalledTimes(2);
+		expect(searchPlaces).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				location: {
+					label: 'Current location',
+					latitude: 43.650123,
+					longitude: -79.390988
+				}
+			}),
+			expect.any(AbortSignal)
+		);
+	});
+
+	it('accepts a device position within the selected search radius without searching', async () => {
+		render(FoodFindPage);
+
+		await page.getByRole('button', { name: 'Use current location' }).click();
+
+		await expect
+			.element(
+				page.getByText('Current location selected. Select Search places when you are ready.')
+			)
+			.toBeVisible();
+		await expect
+			.element(page.getByRole('combobox', { name: 'Location' }))
+			.toHaveValue('Current location');
+		await vi.waitFor(() =>
+			expect(mapRenderer.render).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					center: { latitude: 43.65, longitude: -79.39 },
+					searchAreaSelected: true
+				})
+			)
+		);
+		expect(deviceLocationProvider.getCurrentLocation).toHaveBeenCalledTimes(1);
+		expect(searchPlaces).not.toHaveBeenCalled();
+		expect(interpretSearch).not.toHaveBeenCalled();
+		expect(autocompleteLocations).not.toHaveBeenCalled();
+	});
+
 	it('changes place types without searching and snapshots the chosen types', async () => {
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
 		await expect.element(page.getByRole('checkbox', { name: 'Restaurant' })).toBeChecked();
 		await expect.element(page.getByRole('checkbox', { name: 'Café' })).toBeChecked();
@@ -301,7 +663,7 @@ describe('FoodFind page request lifecycle', () => {
 		await page.getByRole('checkbox', { name: 'Café' }).click();
 		expect(searchPlaces).not.toHaveBeenCalled();
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('button', { name: 'Search places' }).click();
 		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
 		expect(searchPlaces).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -321,6 +683,7 @@ describe('FoodFind page request lifecycle', () => {
 
 	it('applies higher-tier filters and rating sorting only on explicit search', async () => {
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
 		await page.getByRole('checkbox', { name: 'Italian' }).click();
 		await page.getByRole('checkbox', { name: 'Pizza' }).click();
@@ -332,7 +695,7 @@ describe('FoodFind page request lifecycle', () => {
 		await page.getByLabelText('Sort').selectOptions('rating');
 		expect(searchPlaces).not.toHaveBeenCalled();
 
-		await page.getByRole('button', { name: 'Search' }).click();
+		await page.getByRole('button', { name: 'Search places' }).click();
 		expect(searchPlaces).toHaveBeenCalledWith(
 			expect.objectContaining({
 				filters: {
@@ -352,11 +715,12 @@ describe('FoodFind page request lifecycle', () => {
 
 	it('requires at least one place type before searching', async () => {
 		render(FoodFindPage);
+		await chooseTorontoLocation();
 
 		await page.getByRole('checkbox', { name: 'Restaurant' }).click();
 		await page.getByRole('checkbox', { name: 'Café' }).click();
-		await expect.element(page.getByRole('button', { name: 'Search' })).toBeDisabled();
-		await expect.element(page.getByText('Choose at least one place type.')).toBeVisible();
+		await expect.element(page.getByRole('button', { name: 'Search places' })).toBeDisabled();
+		await expect.element(page.getByText('Place type required')).toBeVisible();
 		expect(searchPlaces).not.toHaveBeenCalled();
 	});
 
