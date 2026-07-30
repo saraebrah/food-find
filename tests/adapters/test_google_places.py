@@ -43,9 +43,7 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
 
         restriction = body.pop("locationRestriction")
         assert body == {
-            "textQuery": (
-                "restaurants or cafes or bars or bakeries with Italian cuisine"
-            ),
+            "textQuery": "Italian food",
             "pageSize": 20,
             "openNow": True,
             "minRating": 4.0,
@@ -116,10 +114,7 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
 async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
-        assert body["textQuery"] == (
-            "restaurants or cafes or bars or bakeries "
-            "with Persian cuisine serving kebab or ramen"
-        )
+        assert body["textQuery"] == "Persian kebab or ramen"
         assert "includedType" not in body
         assert "strictTypeFiltering" not in body
         assert "includedPrimaryTypes" not in body
@@ -157,8 +152,7 @@ def test_text_search_maps_the_expanded_cuisines_to_query_text() -> None:
     )
 
     assert query == (
-        "restaurants or cafes or bars or bakeries "
-        "with Mexican or Japanese or Korean or Vietnamese or Mediterranean cuisine"
+        "Mexican or Japanese or Korean or Vietnamese or Mediterranean food"
     )
 
 
@@ -181,9 +175,38 @@ def test_text_search_maps_the_expanded_common_foods_to_query_text() -> None:
     )
 
     assert query == (
-        "restaurants or cafes or bars or bakeries serving "
         "shawarma or ice cream or desserts or sweets or drinks or sushi "
         "or tacos or salad or soup or pasta"
+    )
+
+
+def test_text_search_uses_a_descriptive_dish_as_the_focused_query() -> None:
+    query = GooglePlacesGateway._build_text_query(
+        filters=SearchFilters(),
+        descriptive_requirements=(
+            DescriptiveRequirement(
+                text="matcha",
+                kind=DescriptiveRequirementKind.DISH,
+            ),
+        ),
+    )
+
+    assert query == "matcha"
+
+
+def test_text_search_keeps_the_broad_scope_for_only_non_food_preferences() -> None:
+    query = GooglePlacesGateway._build_text_query(
+        filters=SearchFilters(),
+        descriptive_requirements=(
+            DescriptiveRequirement(
+                text="quiet atmosphere",
+                kind=DescriptiveRequirementKind.ATMOSPHERE,
+            ),
+        ),
+    )
+
+    assert query == (
+        "restaurants or cafes or bars or bakeries quiet atmosphere"
     )
 
 
@@ -197,8 +220,7 @@ async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods()
     async def handle_request(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         assert body["textQuery"] == (
-            "restaurants or cafes or bars or bakeries "
-            "with Persian cuisine quiet atmosphere"
+            "Persian food quiet atmosphere"
         )
         assert request.headers["X-Goog-FieldMask"] == (
             "places.id,places.displayName,places.primaryType,places.types,"

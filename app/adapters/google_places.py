@@ -17,6 +17,7 @@ from app.domain.search import (
 from app.domain.search_intent import (
     AvailabilityWindow,
     DescriptiveRequirement,
+    DescriptiveRequirementKind,
 )
 from app.ports.place_provider import PlaceProvider, PlaceProviderError
 
@@ -226,19 +227,28 @@ class GooglePlacesGateway(PlaceProvider):
         filters: SearchFilters,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
     ) -> str:
-        parts = [GOOGLE_FOOD_BUSINESS_QUERY]
+        has_food_specific_requirement = bool(
+            filters.cuisines
+            or filters.common_foods
+            or any(
+                requirement.kind is DescriptiveRequirementKind.DISH
+                for requirement in descriptive_requirements
+            )
+        )
+        parts = [] if has_food_specific_requirement else [GOOGLE_FOOD_BUSINESS_QUERY]
         if filters.cuisines:
             cuisines = " or ".join(
                 GOOGLE_CUISINE_QUERY_TEXT[cuisine]
                 for cuisine in filters.cuisines
             )
-            parts.append(f"with {cuisines} cuisine")
+            qualifier = "" if filters.common_foods else " food"
+            parts.append(f"{cuisines}{qualifier}")
         if filters.common_foods:
             foods = " or ".join(
                 GOOGLE_COMMON_FOOD_QUERY_TEXT[food]
                 for food in filters.common_foods
             )
-            parts.append(f"serving {foods}")
+            parts.append(foods)
         parts.extend(
             requirement.text for requirement in descriptive_requirements
         )

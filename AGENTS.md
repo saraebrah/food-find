@@ -24,6 +24,8 @@ Before making product or implementation decisions, read:
 - Update `docs/features.md` when feature behavior, edge cases, or acceptance criteria change.
 - Update `docs/decisions.md` when an important product, design, or technical decision is made.
 - Do not treat chat history as the source of truth; the repo docs are the source of truth.
+- Use simple language and easy understanding and clear sentences.
+- Keep thing consice and to the point.
 
 ## Before coding
 
