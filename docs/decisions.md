@@ -583,9 +583,9 @@ All food-business discovery uses Google Text Search. FoodFind does not route ind
 
 One explicit FoodFind search produces one Text Search request with `pageSize=20`. The current implementation does not request continuation batches; automatic top-up and infinite scrolling remain future work. Rendering, reloading, and editing criteria still produce no search request.
 
-The Google adapter constructs a deterministic `textQuery` from a fixed broad food-business scope, submitted cuisines, and submitted common foods. Cuisine and common food can now coexist. Their presence means Google text relevance, not verified menu availability.
+The Google adapter constructs a deterministic `textQuery` from the submitted cuisine, common food, and descriptive requirements. Cuisine and common food can coexist. Their presence means Google text relevance, not verified menu availability.
 
-Place type is not submitted and the adapter does not send `includedType`. It removes a returned place when its known Google types do not match the fixed food-business scope. Missing type data remains unconfirmed rather than being inferred.
+Place type is not submitted and the adapter does not send `includedType`. It removes a returned place when its known Google types do not match FoodFind's supported food-business types. Missing type data remains unconfirmed rather than being inferred.
 
 Text Search can restrict a categorical query to a rectangle, not a circle. For ordinary locations, FoodFind calculates a rectangle enclosing the submitted circle. Near a pole or when the circle crosses the antimeridian, where one valid rectangle cannot represent that area, it uses a circular location bias instead. In every case, the application calculates exact straight-line distance from the immutable submitted location and removes results outside the selected radius.
 
@@ -601,7 +601,7 @@ An active Open now filter sends `openNow=true`; an active minimum rating sends `
 
 ### Tradeoffs
 
-- The broad food-business query and defensive returned-type filtering are less exact than a single strict Google type.
+- Text relevance and defensive returned-type filtering are less exact than a single strict Google type.
 - Rectangular restriction can return candidates outside the selected circle, so local filtering may shorten a batch.
 - Text relevance does not verify that a restaurant currently serves a requested dish.
 - The current single batch remains capped at 20 candidates and is not a complete business directory.
@@ -611,6 +611,44 @@ An active Open now filter sends `openNow=true`; an active minimum rating sends `
 - Text Search supports `textQuery`, one `includedType`, `strictTypeFiltering`, `openNow`, `minRating`, `rankPreference`, `pageSize`, and continuation tokens: [Text Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchText).
 - Text Search location restriction accepts a rectangular viewport: [Text Search location restriction](https://developers.google.com/maps/documentation/places/web-service/text-search#location-restriction).
 - Text Search billing is controlled by the requested response field mask: [Text Search field masks](https://developers.google.com/maps/documentation/places/web-service/text-search#fieldmask).
+
+## Focus Google Text Search on the requested food
+
+- **Date:** 2026-07-29
+- **Status:** Current
+
+### Decision
+
+When a search includes a cuisine, common food, or free-form dish, FoodFind uses those terms as the main Google `textQuery`. It no longer prefixes every such query with **restaurants or cafes or bars or bakeries**. If no food-specific term is present, the broad food-business query remains the fallback.
+
+Location and radius remain separate request data. Known non-food results are still removed defensively. The change adds no request, response field, or higher billing tier.
+
+### Rationale
+
+- A focused query gives Google's relevance system a clearer statement of what the user wants.
+- The fallback keeps searches such as **quiet atmosphere** scoped to food businesses.
+- The provider-specific wording remains isolated in the Google adapter.
+- Text relevance is still not proof that a requested dish is currently available.
+
+## Fetch list-wide evidence in the search request
+
+- **Date:** 2026-07-29
+- **Status:** Accepted for Phase 6 planning
+
+### Decision
+
+When FoodFind needs evidence to rank the entire result list, it will request that evidence in one search-level provider call when the provider supports it. For Google review evidence, one Enterprise + Atmosphere Text Search replaces the ordinary Pro Text Search; FoodFind must not make a Pro search and then request Enterprise + Atmosphere Place Details for every returned candidate.
+
+Place Details remains on demand for information needed only after the user opens one result. Missing review or contextual evidence is unknown, not evidence that a food is unavailable. Positive evidence may support ranking and explanation but must be labelled as user-provided and potentially stale rather than verified menu availability.
+
+Before implementation, Phase 6 begins with one controlled Toronto probe to confirm availability, usefulness, attribution, and billing. Automated tests remain mocked, and live development usage must be explicitly enabled and capped before the behavior is enabled.
+
+### Rationale
+
+- One list-level request avoids turning a result batch into many per-place calls.
+- Separating list ranking from on-demand details keeps request cost tied to the user-visible need.
+- A controlled probe prevents FoodFind from depending on experimental or unavailable provider data.
+- Positive-only evidence avoids false exclusions when reviews or provider data are incomplete.
 
 ## Smart-search interpretation defaults
 
@@ -1029,7 +1067,7 @@ The final audit also established two ordering rules:
 ## Location-first search page and empty default
 
 - **Date:** 2026-07-26
-- **Status:** Accepted for Phase 6 Step 1
+- **Status:** Accepted for Phase 7 Step 1
 
 ### Decision
 
@@ -1062,7 +1100,7 @@ Device geolocation uses **Current location** as its visible label while retainin
 
 Place type is removed from the browser controls, API filter model, domain `SearchFilters`, interpretation capabilities, and Gemini structured output. Location is the only input required before **Search places**; cuisine, common food, availability, rating, service options, smart search, and sorting remain optional.
 
-FoodFind still searches for food businesses. The Google adapter expresses that invariant with a fixed broad query covering restaurants, cafés, bars, and bakeries, and defensively removes results whose known Google types fall outside that scope. It does not send `includedType` or expose provider categories as a user filter. Results with missing type data remain visible as unconfirmed.
+FoodFind still searches for food businesses. The Google adapter uses the requested cuisine, common food, or free-form dish as the main query when one is present; otherwise it uses a broad fallback covering restaurants, cafés, bars, and bakeries. It defensively removes results whose known Google types fall outside that scope. It does not send `includedType` or expose provider categories as a user filter. Results with missing type data remain visible as unconfirmed.
 
 Requests that still submit the removed `place_types` property receive HTTP `422` rather than having an ignored filter appear active.
 

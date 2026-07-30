@@ -46,9 +46,9 @@ Google selects at most 20 candidates before this happens. For example, it might 
 
 Text Search's structured `includedType` parameter accepts one string, not a list. FoodFind can strictly request restaurants or cafés in one call, but cannot strictly request restaurants, cafés, bars, and bakeries together through this parameter.
 
-FoodFind does not expose place type as a filter. It now handles this limitation as follows:
+FoodFind does not expose place type as a filter. It handles this limitation as follows:
 
-- Every search uses one fixed broad `textQuery` covering restaurants, cafés, bars, and bakeries rather than sending `includedType`.
+- A search with a cuisine, common food, or free-form dish focuses `textQuery` on those terms. Otherwise, it uses a broad query covering restaurants, cafés, bars, and bakeries.
 - FoodFind requests Google's returned `types` and removes a place when its known types fall outside that food-business scope.
 - Missing returned type data remains unconfirmed rather than being guessed.
 

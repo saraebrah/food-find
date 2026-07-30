@@ -2,6 +2,27 @@
 
 This file breaks the product into individual features, including expected behavior, edge cases, acceptance criteria, and implementation notes.
 
+## Search-quality iterations
+
+This section records how search works after each change. Add a new iteration only when the search behavior changes.
+
+### Iteration 1 — Broad Google text query
+
+- When the user chooses a cuisine or common food, FoodFind adds it to the Google search.
+- Smart search can also send a food that is not in the Common food list, such as **matcha**, to Google. No Common food filter is selected; **matcha** appears in the interpretation summary instead.
+- Google’s relevance ranking is a black box. For a search such as **burger**, Google ranks places by “perceived relevance” but does not share the score or exact formula.
+- FoodFind then applies the selected radius and supported status, availability, rating, and service filters.
+- FoodFind does not check the place name, Google type, category, description, reviews, or menu to confirm that the requested food is offered.
+- A place can therefore appear for **burger** only because Google considers it relevant. FoodFind warns the user to check the menu or call.
+
+### Iteration 2 — Focused Google text query (current)
+
+- When the user requests a cuisine, common food, or free-form dish, FoodFind sends those terms as the main Google query instead of placing them after the broad **restaurants or cafes or bars or bakeries** phrase.
+- Examples include **Italian food**, **burgers**, **Persian kebab**, and the free-form dish **matcha**.
+- When the request has no food-specific term, FoodFind keeps the broad food-business query. A preference such as **quiet atmosphere** is added to that broad query.
+- Location, radius, filters, and defensive removal of known non-food results work as before.
+- The change still uses one Google Text Search request and the same response fields. It improves the query focus but does not verify menu availability or reveal Google's relevance score.
+
 ## Place search
 
 ### Current behavior
@@ -200,9 +221,9 @@ Map selection and device current location are available in Phase 5.
 - Text relevance can include weak common-food matches. FoodFind does not currently remove a result merely because the requested food is not evident from its name or provider category; improving this safely is deferred to the roadmap.
 - Cuisine and common-food selections can be active together. The Google adapter includes both concepts in the same deterministic Text Search query.
 - Changing any filter or the sort clears stale results and displays guidance but does not search automatically.
-- The Google adapter begins every `textQuery` with a fixed broad food-business scope covering restaurants, cafés, bars, and bakeries, then adds selected cuisines and common foods. The query contains no location label because location is supplied separately as a geographic restriction.
+- The Google adapter focuses `textQuery` on a selected cuisine, common food, or free-form dish. When none is present, it falls back to a broad scope covering restaurants, cafés, bars, and bakeries. The query contains no location label because location is supplied separately as a geographic restriction.
 - Place type is not part of the browser, API, domain-filter, or LLM-output contract. The adapter does not send a strict `includedType`.
-- The adapter removes a returned place when its known Google types do not match the fixed food-business scope. A place with missing type data remains visible as unconfirmed rather than being inferred.
+- The adapter removes a returned place when its known Google types do not match FoodFind's supported food-business types. A place with missing type data remains visible as unconfirmed rather than being inferred.
 - Distance sorting maps to Text Search's `DISTANCE` rank preference. Recommended ordering omits that parameter and retains Google's relevance ranking.
 - The adapter calculates a rectangular Text Search restriction enclosing the selected circle. The application calculates every returned place's exact straight-line distance and removes places outside the selected radius.
 - Cuisine, common-food, and distance controls do not add higher-tier response fields. The base Text Search field mask remains Pro.
@@ -230,7 +251,7 @@ Map selection and device current location are available in Phase 5.
 - One explicit search sends the complete normalized criteria and produces one Text Search request.
 - Multiple cuisines or multiple common-food choices use OR behavior within their own group.
 - Cuisine and common-food choices can appear together in the browser, API, and domain state and are both represented in `textQuery`.
-- Every search uses the same broad food-business query scope; known non-food results are removed defensively.
+- A search with food-specific terms uses those as its main query; otherwise it uses the broad food-business fallback. Known non-food results are removed defensively.
 - Every returned result is inside the selected circular radius after application filtering.
 - Choosing distance changes provider ranking without making an extra request or adding a routing request.
 - The Google response field mask is unchanged when any Pro filter or sort changes.
