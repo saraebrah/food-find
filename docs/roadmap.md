@@ -155,13 +155,16 @@ This phase completes the spatial experience after the result criteria are useful
 ## Phase 6 — Evidence-supported food search
 
 - **Priority:** P0
-- **Status:** Not started
+- **Status:** In progress — paused after Step 1
 
-1. [ ] Run one controlled Google evidence probe for Toronto.
+1. [x] Run one controlled Google evidence probe for Toronto.
    - Submit one explicit food query through Text Search and request query-related review or contextual evidence in the same response.
+   - Use the human-reviewed cases in [`docs/examples.md`](examples.md) to judge search quality. Add cases over time, but never hard-code behavior for a named business.
    - Confirm what Google actually returns for Toronto, whether the evidence is useful, the required attribution, and the billed SKU before building product behavior around it.
    - Stop after the probe and review the result. Do not assume experimental contextual content is available or useful.
+   - The July 30, 2026 result and Step 1 conclusion are recorded in [`docs/phase-6-step-1-probe.md`](phase-6-step-1-probe.md).
 2. [ ] If the probe is useful, build Iteration 3 as one conditional Enterprise + Atmosphere Text Search with review-supported ranking.
+   - **Gate result:** the expanded Step 1 evaluation found inconsistent, stale, and partial evidence. This implementation is not yet approved; reconsider the approach before starting Step 2.
    - When list-wide evidence is needed, request it in the original Text Search. Do not make a Pro search followed by Place Details calls for every candidate.
    - Keep Place Details on demand for information needed only after the user opens one result.
    - Treat a relevant review mention as positive, potentially stale evidence—not verified menu availability. Promote supported results without removing a result merely because evidence is missing.
@@ -178,7 +181,7 @@ This phase completes the spatial experience after the result criteria are useful
 5. [ ] Establish a provider-independent food-evidence layer.
    - Normalize evidence, source, age, and confidence separately from place discovery so Google, Foursquare, open data, restaurant websites, or restaurant-owned menus can be added or replaced later.
    - Keep provider-specific response parsing in adapters. Ranking rules consume normalized evidence and must never treat missing evidence as proof that a food is unavailable.
-   - Preserve the observed Gigi's Street Eats and The Burger's Priest searches as evaluation cases for each search-quality change.
+   - Preserve and expand [`docs/examples.md`](examples.md) as the evaluation set for each search-quality change.
 
 This phase improves FoodFind's central search quality with evidence rather than unsupported exclusions. The first live probe is a gate: if Google evidence is unavailable, weak, or too costly, review the Foursquare option before choosing an implementation.
 

@@ -41,6 +41,26 @@ python -m app.scripts.google_places_smoke
 
 Do not add this command to automated tests.
 
+The completed Phase 6 evidence probe remains available as an explicitly
+confirmed development utility:
+
+```sh
+python -m app.scripts.foodfind_phase6_probe --confirm-live-google-request
+```
+
+It makes one fixed, potentially billable **Text Search Enterprise + Atmosphere**
+request and does not save the response. Do not run it casually or add it to
+automated tests.
+
+The completed evaluation of the remaining examples can be reproduced with:
+
+```sh
+python -m app.scripts.foodfind_phase6_probe --confirm-remaining-example-requests
+```
+
+That mode makes four fixed Enterprise + Atmosphere requests using the query and
+radius recorded for each example. It does not paginate, retry, or save responses.
+
 ## Google Maps setup
 
 The embedded map uses a separate browser key. Enable **Maps JavaScript API**, restrict the key to **Websites** and **Maps JavaScript API** only, and allow these local referrers:
@@ -118,3 +138,4 @@ Frontend tests intercept or mock FoodFind API responses and replace the map rend
 - [`docs/google-places-search-limitations.md`](docs/google-places-search-limitations.md): Google search limitations and their FoodFind implications
 - [`docs/concepts.md`](docs/concepts.md): implementation concepts explained
 - [`docs/phase-1-overview.md`](docs/phase-1-overview.md): Phase 1 architecture and file-by-file walkthrough
+- [`docs/phase-6-step-1-probe.md`](docs/phase-6-step-1-probe.md): controlled evidence-probe findings and conclusion

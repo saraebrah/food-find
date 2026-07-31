@@ -8,6 +8,7 @@ Before making product or implementation decisions, read:
 - `docs/roadmap.md` for build order and priorities
 - `docs/features.md` for feature-level behavior and acceptance criteria
 - `docs/decisions.md` for previous decisions and rationale
+- `docs/examples.md` for human-reviewed search-quality cases; use them when evaluating search changes, never hard-code named-business behavior, and recheck evidence that may be stale.
 
 ## Working rules
 
