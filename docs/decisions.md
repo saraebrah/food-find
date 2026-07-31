@@ -643,12 +643,37 @@ Place Details remains on demand for information needed only after the user opens
 
 Before implementation, Phase 6 begins with one controlled Toronto probe to confirm availability, usefulness, attribution, and billing. Automated tests remain mocked, and live development usage must be explicitly enabled and capped before the behavior is enabled.
 
+The human-reviewed query and business cases in `docs/examples.md` are FoodFind's ongoing search-quality evaluation set, not only inputs for the Phase 6 probe. Review relevant cases whenever changing request interpretation, provider queries, evidence use, matching, filtering, ranking, or result explanations. They guide general search behavior but must never become named-business conditions in production code. Expected results reflect the evidence available when each case was added, and evidence should be rechecked when it may be stale or unclear.
+
 ### Rationale
 
 - One list-level request avoids turning a result batch into many per-place calls.
 - Separating list ranking from on-demand details keeps request cost tied to the user-visible need.
 - A controlled probe prevents FoodFind from depending on experimental or unavailable provider data.
 - Positive-only evidence avoids false exclusions when reviews or provider data are incomplete.
+- A growing reviewed case set makes search changes comparable without overfitting FoodFind to individual restaurants.
+
+## Treat Google query-related review evidence as useful but potentially stale
+
+- **Date:** 2026-07-30
+- **Status:** Accepted after Phase 6 Step 1
+
+### Decision
+
+The controlled Toronto evaluation returned query-related review justifications and showed that they can sometimes explain a result. They must not be used as proof that an item is currently on the menu, and they must not cause strict inclusion or exclusion by themselves.
+
+The evidence may be used only as positive, potentially stale support. Missing evidence remains unknown. Any later product use must include Google Maps and review-author attribution, a link to the source review, and an explanation of how review evidence is selected.
+
+The expanded evaluation did not approve review-supported production ranking: only five of ten recorded outcomes matched, some evidence covered only part of the query, and expected businesses missing from Google's first 20 could not benefit from ranking. The complete outcome is recorded in [`phase-6-step-1-probe.md`](phase-6-step-1-probe.md). Production search remains on Iteration 2 while the Step 2 approach is reconsidered.
+
+### Rationale
+
+- Five of ten recorded outcomes matched the live results.
+- A business expected not to appear was returned because an older review mentioned the requested food.
+- Other justifications mentioned only a broad category or part of a multi-word dish.
+- Two expected chocolate-cake businesses were absent from the candidate set.
+- The mismatch demonstrates that review relevance and current menu availability are different claims.
+- The probe requested `places.reviews`, which Google classifies as Text Search Enterprise + Atmosphere.
 
 ## Smart-search interpretation defaults
 

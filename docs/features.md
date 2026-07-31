@@ -6,6 +6,8 @@ This file breaks the product into individual features, including expected behavi
 
 This section records how search works after each change. Add a new iteration only when the search behavior changes.
 
+`docs/examples.md` is the human-reviewed evaluation set for FoodFind search. Review its relevant cases before changing request interpretation, provider queries, evidence use, matching, filtering, ranking, or result explanations. Use the examples to improve general behavior, never to hard-code behavior for a named business.
+
 ### Iteration 1 — Broad Google text query
 
 - When the user chooses a cuisine or common food, FoodFind adds it to the Google search.
