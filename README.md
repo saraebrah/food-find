@@ -61,6 +61,15 @@ python -m app.scripts.foodfind_phase6_probe --confirm-remaining-example-requests
 That mode makes four fixed Enterprise + Atmosphere requests using the query and
 radius recorded for each example. It does not paginate, retry, or save responses.
 
+The completed Pro-only `chocolate cake` pagination probe can be reproduced with:
+
+```sh
+python -m app.scripts.foodfind_phase6_pagination_probe --confirm-live-google-pagination-requests
+```
+
+It makes at most three requests, stops when Google provides no continuation
+token, and does not request reviews, retry, or save responses.
+
 ## Google Maps setup
 
 The embedded map uses a separate browser key. Enable **Maps JavaScript API**, restrict the key to **Websites** and **Maps JavaScript API** only, and allow these local referrers:

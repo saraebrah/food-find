@@ -12,7 +12,7 @@ from pydantic import (
 from app.domain.search import (
     CommonFood,
     Cuisine,
-    MinimumRating,
+    RatingComparison,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -33,7 +33,8 @@ class SearchFiltersOutput(BaseModel):
     cuisines: tuple[Cuisine, ...] = Field(max_length=len(Cuisine))
     common_foods: tuple[CommonFood, ...] = Field(max_length=len(CommonFood))
     open_now: bool
-    minimum_rating: MinimumRating | None
+    minimum_rating: float | None = Field(ge=0, le=5, allow_inf_nan=False)
+    rating_comparison: RatingComparison = RatingComparison.AT_LEAST
     dine_in: bool
     takeout: bool
 
@@ -47,12 +48,22 @@ class SearchFiltersOutput(BaseModel):
             raise ValueError("Filter values must be unique")
         return values
 
+    @model_validator(mode="after")
+    def comparison_requires_a_rating(self) -> "SearchFiltersOutput":
+        if (
+            self.minimum_rating is None
+            and self.rating_comparison is not RatingComparison.AT_LEAST
+        ):
+            raise ValueError("Rating comparison requires a minimum rating")
+        return self
+
     def to_domain(self) -> SearchFilters:
         return SearchFilters(
             cuisines=self.cuisines,
             common_foods=self.common_foods,
             open_now=self.open_now,
             minimum_rating=self.minimum_rating,
+            rating_comparison=self.rating_comparison,
             dine_in=self.dine_in,
             takeout=self.takeout,
         )

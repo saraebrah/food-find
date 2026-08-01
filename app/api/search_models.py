@@ -12,7 +12,7 @@ from app.domain.place import Coordinates
 from app.domain.search import (
     CommonFood,
     Cuisine,
-    MinimumRating,
+    RatingComparison,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -54,7 +54,13 @@ class SearchFiltersRequest(BaseModel):
         max_length=len(CommonFood),
     )
     open_now: bool = False
-    minimum_rating: MinimumRating | None = None
+    minimum_rating: float | None = Field(
+        default=None,
+        ge=0,
+        le=5,
+        allow_inf_nan=False,
+    )
+    rating_comparison: RatingComparison = RatingComparison.AT_LEAST
     dine_in: bool = False
     takeout: bool = False
 
@@ -78,12 +84,22 @@ class SearchFiltersRequest(BaseModel):
             raise ValueError("Common foods must be unique")
         return common_foods
 
+    @model_validator(mode="after")
+    def comparison_requires_a_rating(self) -> "SearchFiltersRequest":
+        if (
+            self.minimum_rating is None
+            and self.rating_comparison is not RatingComparison.AT_LEAST
+        ):
+            raise ValueError("Rating comparison requires a minimum rating")
+        return self
+
     def to_domain(self) -> SearchFilters:
         return SearchFilters(
             cuisines=self.cuisines,
             common_foods=self.common_foods,
             open_now=self.open_now,
             minimum_rating=self.minimum_rating,
+            rating_comparison=self.rating_comparison,
             dine_in=self.dine_in,
             takeout=self.takeout,
         )

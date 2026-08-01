@@ -34,6 +34,7 @@ describe('FoodFind API client', () => {
 				common_foods: [],
 				open_now: false,
 				minimum_rating: null,
+				rating_comparison: 'at_least',
 				dine_in: false,
 				takeout: false
 			},
@@ -63,6 +64,7 @@ describe('FoodFind API client', () => {
 					common_foods: [],
 					open_now: false,
 					minimum_rating: null,
+					rating_comparison: 'at_least',
 					dine_in: false,
 					takeout: false
 				},
@@ -120,6 +122,7 @@ describe('FoodFind API client', () => {
 					common_foods: ['kebab'],
 					open_now: false,
 					minimum_rating: 4,
+					rating_comparison: 'at_least',
 					dine_in: true,
 					takeout: false
 				},
@@ -150,6 +153,7 @@ describe('FoodFind API client', () => {
 				common_foods: [],
 				open_now: false,
 				minimum_rating: null,
+				rating_comparison: 'at_least',
 				dine_in: false,
 				takeout: false
 			},
@@ -182,6 +186,7 @@ describe('FoodFind API client', () => {
 					common_foods: [],
 					open_now: false,
 					minimum_rating: null,
+					rating_comparison: 'at_least',
 					dine_in: false,
 					takeout: false
 				},

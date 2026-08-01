@@ -11,7 +11,11 @@ from app.adapters.gemini_search_interpreter import (
 from app.application.search_intent_output import SearchIntentOutput
 from app.domain.location import SelectedLocation
 from app.domain.place import Coordinates
-from app.domain.search import MinimumRating, SearchCriteria, SearchSort
+from app.domain.search import (
+    RatingComparison,
+    SearchCriteria,
+    SearchSort,
+)
 from app.domain.search_interpretation import SearchInterpretationContext
 from app.ports.search_interpreter import SearchInterpreterError
 
@@ -98,7 +102,7 @@ async def test_gemini_uses_structured_output_with_step_four_context() -> None:
         context=make_context(),
     )
 
-    assert intent.search_criteria.filters.minimum_rating is MinimumRating.FOUR_AND_HALF
+    assert intent.search_criteria.filters.minimum_rating == 4.5
     assert intent.search_criteria.sort is SearchSort.RATING
     assert len(models.calls) == 1
     call = models.calls[0]
@@ -113,7 +117,10 @@ async def test_gemini_uses_structured_output_with_step_four_context() -> None:
     assert '"timezone":"America/Toronto"' in contents
     assert '"place_types"' not in contents
     assert '"minimum_rating":null' in contents
-    assert '"minimum_ratings":[3.0,3.5,4.0,4.5]' in contents
+    assert '"rating_comparison":"at_least"' in contents
+    assert '"minimum_rating_presets":[3.0,3.5,4.0,4.5]' in contents
+    assert '"rating_comparisons":["at_least","greater_than"]' in contents
+    assert '"maximum_rating_value":5' in contents
     assert '"time_aware_availability":true' in contents
     assert '"availability_horizon_days":7' in contents
     assert '"device_location":false' in contents
@@ -131,6 +138,87 @@ async def test_gemini_uses_structured_output_with_step_four_context() -> None:
     assert (
         "set starts_at and ends_at to the same"
         in GEMINI_SYSTEM_INSTRUCTION
+    )
+    assert "Normalize obvious spelling mistakes" in GEMINI_SYSTEM_INSTRUCTION
+    assert "canonical spelling" in GEMINI_SYSTEM_INSTRUCTION
+    assert "genuinely ambiguous" in GEMINI_SYSTEM_INSTRUCTION
+    assert "Do not round the user's threshold" in GEMINI_SYSTEM_INSTRUCTION
+    assert 'the ">" symbol' in GEMINI_SYSTEM_INSTRUCTION
+    assert "with or without spaces" in GEMINI_SYSTEM_INSTRUCTION
+    assert "obvious unambiguous misspelling" in GEMINI_SYSTEM_INSTRUCTION
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "query",
+    (
+        "burger with rating greater than 4.7",
+        "burger with rating > 4.7",
+        "burger with rating >4.7",
+        "burger with rating greather than 4.7",
+    ),
+)
+async def test_gemini_preserves_an_exact_strict_rating_comparison(
+    query: str,
+) -> None:
+    payload = valid_output().model_dump(mode="json")
+    payload["filters"]["minimum_rating"] = 4.7
+    payload["filters"]["rating_comparison"] = "greater_than"
+    payload["assumptions"] = []
+    models = RecordingModels(parsed=payload)
+    interpreter = GeminiSearchInterpreter(
+        models=models,
+        model="gemini-3.6-flash",
+    )
+
+    intent = await interpreter.interpret(
+        query=query,
+        search_criteria=make_criteria(),
+        context=make_context(),
+    )
+
+    filters = intent.search_criteria.filters
+    assert filters.minimum_rating == 4.7
+    assert filters.rating_comparison is RatingComparison.GREATER_THAN
+
+
+@pytest.mark.anyio
+async def test_gemini_accepts_a_visible_contextual_spelling_correction() -> None:
+    payload = valid_output().model_dump(mode="json")
+    payload["filters"] = {
+        "cuisines": [],
+        "common_foods": ["pizza"],
+        "open_now": False,
+        "minimum_rating": None,
+        "dine_in": False,
+        "takeout": False,
+    }
+    payload["sort"] = "provider_default"
+    payload["descriptive_requirements"] = [
+        {"text": "margherita pizza", "kind": "dish"}
+    ]
+    payload["assumptions"] = [
+        {
+            "source_text": "margarita pizza",
+            "interpretation": "Interpreted as margherita pizza",
+        }
+    ]
+    models = RecordingModels(parsed=payload)
+    interpreter = GeminiSearchInterpreter(
+        models=models,
+        model="gemini-3.6-flash",
+    )
+
+    intent = await interpreter.interpret(
+        query="margarita pizza",
+        search_criteria=make_criteria(),
+        context=make_context(),
+    )
+
+    assert intent.descriptive_requirements[0].text == "margherita pizza"
+    assert intent.assumptions[0].source_text == "margarita pizza"
+    assert intent.assumptions[0].interpretation == (
+        "Interpreted as margherita pizza"
     )
 
 
@@ -180,7 +268,7 @@ async def test_gemini_revalidates_dictionary_output() -> None:
         context=make_context(),
     )
 
-    assert intent.search_criteria.filters.minimum_rating is MinimumRating.FOUR_AND_HALF
+    assert intent.search_criteria.filters.minimum_rating == 4.5
 
 
 @pytest.mark.anyio

@@ -72,6 +72,8 @@ The current MVP intentionally requests only the first batch. Future continuation
 
 Pagination also does not guarantee a complete directory. Text Search remains relevance-ranked, and Google may stop providing continuation tokens before every potentially matching business has been exposed.
 
+A controlled **chocolate cake** test on July 31, 2026 illustrates both effects. Bellissimo Pizzeria was absent from the first 20 but appeared as result 37 on page 2. CRAFT Beer Market remained absent after all 60 results. Pagination therefore improves coverage but does not guarantee that an expected business will appear.
+
 Reference: [Text Search pagination](https://developers.google.com/maps/documentation/places/web-service/text-search#specify-number-results-to-return-per-page)
 
 ## 7. Google categories and text relevance do not prove menu availability

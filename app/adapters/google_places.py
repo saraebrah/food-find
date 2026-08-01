@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from math import asin, cos, degrees, pi, radians, sin
+from math import asin, cos, degrees, floor, pi, radians, sin
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -244,11 +244,25 @@ class GooglePlacesGateway(PlaceProvider):
             qualifier = "" if filters.common_foods else " food"
             parts.append(f"{cuisines}{qualifier}")
         if filters.common_foods:
+            dish_texts = tuple(
+                requirement.text.casefold()
+                for requirement in descriptive_requirements
+                if requirement.kind is DescriptiveRequirementKind.DISH
+            )
+            unrepeated_foods = tuple(
+                food
+                for food in filters.common_foods
+                if not any(
+                    food.value.replace("_", " ") in dish_text
+                    for dish_text in dish_texts
+                )
+            )
             foods = " or ".join(
                 GOOGLE_COMMON_FOOD_QUERY_TEXT[food]
-                for food in filters.common_foods
+                for food in unrepeated_foods
             )
-            parts.append(foods)
+            if foods:
+                parts.append(foods)
         parts.extend(
             requirement.text for requirement in descriptive_requirements
         )
@@ -342,7 +356,7 @@ class GooglePlacesGateway(PlaceProvider):
         if filters.open_now:
             request_body["openNow"] = True
         if filters.minimum_rating is not None:
-            request_body["minRating"] = filters.minimum_rating.value
+            request_body["minRating"] = floor(filters.minimum_rating * 2) / 2
         if sort is SearchSort.DISTANCE:
             request_body["rankPreference"] = "DISTANCE"
 

@@ -91,8 +91,15 @@ class InterpretSearch:
             )
             or (
                 filters.minimum_rating is not None
-                and filters.minimum_rating
-                not in capabilities.minimum_ratings
+                and not (
+                    capabilities.minimum_rating_value
+                    <= filters.minimum_rating
+                    <= capabilities.maximum_rating_value
+                )
+            )
+            or (
+                filters.rating_comparison
+                not in capabilities.rating_comparisons
             )
             or criteria.sort not in capabilities.sort_options
             or (filters.open_now and not capabilities.open_now)

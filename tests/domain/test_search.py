@@ -2,6 +2,7 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
+    RatingComparison,
     SearchFilters,
     SearchSort,
 )
@@ -19,6 +20,13 @@ def test_search_filters_have_no_place_type_dimension() -> None:
 
 def test_search_rating_contract_uses_supported_thresholds_and_order() -> None:
     assert [rating.value for rating in MinimumRating] == [3.0, 3.5, 4.0, 4.5]
+    filters = SearchFilters(
+        minimum_rating=4.8,
+        rating_comparison=RatingComparison.GREATER_THAN,
+    )
+
+    assert filters.minimum_rating == 4.8
+    assert filters.rating_comparison is RatingComparison.GREATER_THAN
     assert SearchSort.RATING.value == "rating"
 
 

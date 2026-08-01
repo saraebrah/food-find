@@ -159,9 +159,10 @@ def test_explicit_interpretation_returns_editable_intent_once(
             "filters": {
                 "cuisines": ["persian"],
                 "common_foods": ["kebab"],
-                "open_now": False,
-                "minimum_rating": 4.0,
-                "dine_in": True,
+                    "open_now": False,
+                    "minimum_rating": 4.0,
+                    "rating_comparison": "at_least",
+                    "dine_in": True,
                 "takeout": False,
             },
             "sort": "rating",

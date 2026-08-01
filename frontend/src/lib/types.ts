@@ -44,13 +44,15 @@ export type CommonFood =
 	| 'salad'
 	| 'soup'
 	| 'pasta';
-export type MinimumRating = 3 | 3.5 | 4 | 4.5;
+export type MinimumRating = number;
+export type RatingComparison = 'at_least' | 'greater_than';
 
 export interface SearchFilters {
 	cuisines: Cuisine[];
 	common_foods: CommonFood[];
 	open_now: boolean;
 	minimum_rating: MinimumRating | null;
+	rating_comparison: RatingComparison;
 	dine_in: boolean;
 	takeout: boolean;
 }

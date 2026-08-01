@@ -64,7 +64,7 @@ Example requests:
 - Common food, such as pizza, burgers, steak, ramen, kebab, shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, or pasta
 - Open now
 - Dine-in and takeout
-- Minimum rating
+- Minimum rating, including exact smart-search comparisons
 - Sort by distance or rating
 
 Common-food filtering may initially use categories and keywords supported by the selected provider. FoodFind must not claim that a specific dish is available without reliable menu data.

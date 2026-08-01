@@ -18,6 +18,7 @@ from app.domain.place import (
 from app.domain.search import (
     Cuisine,
     MinimumRating,
+    RatingComparison,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -349,6 +350,44 @@ async def test_minimum_rating_excludes_lower_and_missing_ratings() -> None:
     places = await search.execute(criteria=criteria)
 
     assert [place.provider_place_id for place in places] == ["rated-4-8"]
+
+
+@pytest.mark.anyio
+async def test_exact_greater_than_rating_excludes_an_equal_rating() -> None:
+    provider = RatingPlaceProvider()
+    search = SearchPlaces(place_provider=provider)
+    criteria = SearchCriteria(
+        location=SelectedLocation(
+            label="Union Station coordinates",
+            coordinates=Coordinates(latitude=43.6453, longitude=-79.3806),
+        ),
+        radius_meters=2_000,
+        filters=SearchFilters(
+            minimum_rating=4.8,
+            rating_comparison=RatingComparison.GREATER_THAN,
+        ),
+    )
+    provider_rating = Place(
+        provider="google",
+        provider_place_id="rated-4-9",
+        name="Rated 4.9",
+        category="Restaurant",
+        category_code="restaurant",
+        address=None,
+        coordinates=Coordinates(latitude=43.6454, longitude=-79.3805),
+        business_status="operational",
+        rating=4.9,
+    )
+    original_search = provider.search_nearby
+
+    async def search_with_4_9(**kwargs: object) -> Sequence[Place]:
+        return [*(await original_search(**kwargs)), provider_rating]
+
+    provider.search_nearby = search_with_4_9  # type: ignore[method-assign]
+
+    places = await search.execute(criteria=criteria)
+
+    assert [place.provider_place_id for place in places] == ["rated-4-9"]
 
 
 @pytest.mark.anyio

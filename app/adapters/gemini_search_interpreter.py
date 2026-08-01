@@ -24,8 +24,19 @@ Rules:
 - Good rated means a minimum rating of 4.0.
 - Highly rated means a minimum rating of 4.5.
 - Best or top rated means rating sort without inventing a minimum rating.
+- Preserve an explicit numeric rating threshold exactly.
+- "Greater than" and the ">" symbol with or without spaces mean
+  rating_comparison greater_than. An obvious unambiguous misspelling of the
+  comparison phrase has the same meaning.
+- "At least", "or higher", the ">=" or "≥" symbols, and a plus sign mean
+  rating_comparison at_least. Do not round the user's threshold to a preset.
 - Keep useful dish, dietary, atmosphere, or other descriptive requirements even
   when they do not have a dedicated filter.
+- Normalize obvious spelling mistakes in food, dish, and cuisine names when the
+  surrounding context makes the intended term unambiguous. Use canonical spelling
+  in filters and descriptive_requirements, and record the correction in assumptions
+  with the user's original wording. Do not silently correct genuinely ambiguous
+  wording.
 - Text relevance is not proof that a place satisfies a descriptive requirement.
 - Use only values and behavior listed in the FoodFind capabilities.
 - "Near me" means the selected location in the supplied context. Record that
@@ -122,10 +133,11 @@ class GeminiSearchInterpreter:
                 ],
                 "open_now": filters.open_now,
                 "minimum_rating": (
-                    filters.minimum_rating.value
+                    filters.minimum_rating
                     if filters.minimum_rating is not None
                     else None
                 ),
+                "rating_comparison": filters.rating_comparison.value,
                 "dine_in": filters.dine_in,
                 "takeout": filters.takeout,
             },
@@ -162,9 +174,14 @@ class GeminiSearchInterpreter:
             "common_foods": [
                 value.value for value in capabilities.common_foods
             ],
-            "minimum_ratings": [
-                value.value for value in capabilities.minimum_ratings
+            "minimum_rating_presets": [
+                value.value for value in capabilities.minimum_rating_presets
             ],
+            "rating_comparisons": [
+                value.value for value in capabilities.rating_comparisons
+            ],
+            "minimum_rating_value": capabilities.minimum_rating_value,
+            "maximum_rating_value": capabilities.maximum_rating_value,
             "sort_options": [
                 value.value for value in capabilities.sort_options
             ],

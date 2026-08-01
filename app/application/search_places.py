@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from app.application.match_reasons import build_match_reasons
 from app.domain.place import Place
 from app.domain.search import (
+    RatingComparison,
     SearchCriteria,
     SearchSort,
     straight_line_distance_meters,
@@ -72,7 +73,16 @@ class SearchPlaces:
                 criteria.filters.minimum_rating is not None
                 and (
                     place.rating is None
-                    or place.rating < criteria.filters.minimum_rating.value
+                    or (
+                        criteria.filters.rating_comparison
+                        is RatingComparison.AT_LEAST
+                        and place.rating < criteria.filters.minimum_rating
+                    )
+                    or (
+                        criteria.filters.rating_comparison
+                        is RatingComparison.GREATER_THAN
+                        and place.rating <= criteria.filters.minimum_rating
+                    )
                 )
             ):
                 continue

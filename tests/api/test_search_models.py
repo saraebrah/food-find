@@ -8,7 +8,6 @@ from app.api.search_models import SearchPlacesRequest, SelectedLocationRequest
 from app.domain.search import (
     CommonFood,
     Cuisine,
-    MinimumRating,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -188,8 +187,28 @@ def test_search_request_normalizes_minimum_rating_and_rating_sort() -> None:
     )
 
     criteria = request.to_domain()
-    assert criteria.filters.minimum_rating is MinimumRating.FOUR_AND_HALF
+    assert criteria.filters.minimum_rating == 4.5
+    assert criteria.filters.rating_comparison.value == "at_least"
     assert criteria.sort is SearchSort.RATING
+
+
+def test_search_request_preserves_an_exact_rating_comparison() -> None:
+    request = SearchPlacesRequest(
+        location=SelectedLocationRequest(
+            label="Toronto City Hall",
+            latitude=43.6532,
+            longitude=-79.3832,
+        ),
+        radius_meters=1_000,
+        filters={
+            "minimum_rating": 4.8,
+            "rating_comparison": "greater_than",
+        },
+    )
+
+    filters = request.to_domain().filters
+    assert filters.minimum_rating == 4.8
+    assert filters.rating_comparison.value == "greater_than"
 
 
 def test_search_request_normalizes_cuisine_and_distance_sort() -> None:
@@ -273,8 +292,8 @@ def test_search_request_rejects_unsupported_or_duplicate_specialties(
         )
 
 
-@pytest.mark.parametrize("minimum_rating", (2.5, 3.7, 5.0))
-def test_search_request_rejects_an_unsupported_minimum_rating(
+@pytest.mark.parametrize("minimum_rating", (-0.1, 5.1))
+def test_search_request_rejects_an_out_of_range_minimum_rating(
     minimum_rating: float,
 ) -> None:
     with pytest.raises(ValidationError):
