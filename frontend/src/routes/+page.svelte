@@ -24,6 +24,7 @@
 		MinimumRating,
 		Place,
 		PlaceSearchRequest,
+		RatingComparison,
 		SearchCriteria,
 		SearchFilters,
 		SearchInterpretation,
@@ -47,6 +48,7 @@
 		common_foods: [],
 		open_now: false,
 		minimum_rating: null,
+		rating_comparison: 'at_least',
 		dine_in: false,
 		takeout: false
 	});
@@ -178,8 +180,15 @@
 		status = 'Availability updated. Select Search places to refresh the results.';
 	}
 
-	function handleMinimumRatingChange(minimumRating: MinimumRating | null) {
-		filters = { ...filters, minimum_rating: minimumRating };
+	function handleMinimumRatingChange(
+		minimumRating: MinimumRating | null,
+		ratingComparison: RatingComparison
+	) {
+		filters = {
+			...filters,
+			minimum_rating: minimumRating,
+			rating_comparison: ratingComparison
+		};
 		clearResults();
 		markInterpretationEdited();
 		status = 'Minimum rating updated. Select Search places to refresh the results.';
@@ -219,6 +228,7 @@
 				common_foods: [...filters.common_foods],
 				open_now: filters.open_now,
 				minimum_rating: filters.minimum_rating,
+				rating_comparison: filters.rating_comparison,
 				dine_in: filters.dine_in,
 				takeout: filters.takeout
 			},
@@ -233,6 +243,7 @@
 			common_foods: [...result.search_criteria.filters.common_foods],
 			open_now: result.search_criteria.filters.open_now,
 			minimum_rating: result.search_criteria.filters.minimum_rating,
+			rating_comparison: result.search_criteria.filters.rating_comparison,
 			dine_in: result.search_criteria.filters.dine_in,
 			takeout: result.search_criteria.filters.takeout
 		};
@@ -483,6 +494,7 @@
 			/>
 			<MinimumRatingFilter
 				minimumRating={filters.minimum_rating}
+				ratingComparison={filters.rating_comparison}
 				disabled={busy}
 				onChange={handleMinimumRatingChange}
 			/>

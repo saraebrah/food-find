@@ -2,7 +2,13 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from app.domain.search import CommonFood, Cuisine, MinimumRating, SearchSort
+from app.domain.search import (
+    CommonFood,
+    Cuisine,
+    MinimumRating,
+    RatingComparison,
+    SearchSort,
+)
 from app.domain.search_intent import DescriptiveRequirementKind
 
 
@@ -12,7 +18,10 @@ class SearchCapabilities:
 
     cuisines: tuple[Cuisine, ...]
     common_foods: tuple[CommonFood, ...]
-    minimum_ratings: tuple[MinimumRating, ...]
+    minimum_rating_presets: tuple[MinimumRating, ...]
+    rating_comparisons: tuple[RatingComparison, ...]
+    minimum_rating_value: float
+    maximum_rating_value: float
     sort_options: tuple[SearchSort, ...]
     descriptive_requirement_kinds: tuple[DescriptiveRequirementKind, ...]
     minimum_radius_meters: int
@@ -30,7 +39,10 @@ class SearchCapabilities:
 FOODFIND_SEARCH_CAPABILITIES = SearchCapabilities(
     cuisines=tuple(Cuisine),
     common_foods=tuple(CommonFood),
-    minimum_ratings=tuple(MinimumRating),
+    minimum_rating_presets=tuple(MinimumRating),
+    rating_comparisons=tuple(RatingComparison),
+    minimum_rating_value=0,
+    maximum_rating_value=5,
     sort_options=tuple(SearchSort),
     descriptive_requirement_kinds=tuple(DescriptiveRequirementKind),
     minimum_radius_meters=100,

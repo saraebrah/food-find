@@ -515,11 +515,11 @@ Results retained by the filter carry `open_now=true` in the normalized summary a
 ## Enterprise rating filters
 
 - **Date:** 2026-07-18
-- **Status:** Minimum-rating request behavior superseded by Text Search-only discovery on 2026-07-21; filter and sorting behavior remain current
+- **Status:** Provider request behavior superseded by Text Search-only discovery on 2026-07-21; threshold contract superseded by exact comparisons on 2026-07-31; sorting behavior remains current
 
 ### Decision
 
-FoodFind supports four provider-independent minimum-rating thresholds: 3.0, 3.5, 4.0, and 4.5. No minimum is the default. The API rejects any other threshold instead of accepting a value the browser cannot represent.
+FoodFind's manual control supports four minimum-rating presets: 3.0, 3.5, 4.0, and 4.5. No minimum is the default. The current API and smart-search contract also support exact thresholds and comparison operators as documented in **Exact natural-language rating comparisons**.
 
 A selected minimum keeps only places whose normalized rating is greater than or equal to the threshold. A missing rating does not satisfy a minimum because FoodFind cannot prove the place meets it.
 
@@ -583,13 +583,13 @@ All food-business discovery uses Google Text Search. FoodFind does not route ind
 
 One explicit FoodFind search produces one Text Search request with `pageSize=20`. The current implementation does not request continuation batches; automatic top-up and infinite scrolling remain future work. Rendering, reloading, and editing criteria still produce no search request.
 
-The Google adapter constructs a deterministic `textQuery` from the submitted cuisine, common food, and descriptive requirements. Cuisine and common food can coexist. Their presence means Google text relevance, not verified menu availability.
+The Google adapter constructs a deterministic `textQuery` from the submitted cuisine, common food, and descriptive requirements. Cuisine and common food can coexist. When a specific dish already contains a selected common-food term, the adapter omits the repeated broad term from the provider query. Their presence means Google text relevance, not verified menu availability.
 
 Place type is not submitted and the adapter does not send `includedType`. It removes a returned place when its known Google types do not match FoodFind's supported food-business types. Missing type data remains unconfirmed rather than being inferred.
 
 Text Search can restrict a categorical query to a rectangle, not a circle. For ordinary locations, FoodFind calculates a rectangle enclosing the submitted circle. Near a pole or when the circle crosses the antimeridian, where one valid rectangle cannot represent that area, it uses a circular location bias instead. In every case, the application calculates exact straight-line distance from the immutable submitted location and removes results outside the selected radius.
 
-An active Open now filter sends `openNow=true`; an active minimum rating sends `minRating`. FoodFind still requests the corresponding response fields conditionally and verifies returned normalized values. Rating sorting remains application-side because Text Search does not rank by rating. Dine-in and Takeout remain conditional response fields followed by application-side filtering because Text Search has no request parameters for them.
+An active Open now filter sends `openNow=true`; an active rating comparison sends the greatest half-point `minRating` that does not exceed the exact threshold. FoodFind still requests the corresponding response fields conditionally and verifies returned normalized values, including the exact rating comparison. Rating sorting remains application-side because Text Search does not rank by rating. Dine-in and Takeout remain conditional response fields followed by application-side filtering because Text Search has no request parameters for them.
 
 ### Rationale
 
@@ -689,6 +689,7 @@ Rating language uses these defaults:
 - **Good rated:** minimum 4.0
 - **Highly rated:** minimum 4.5
 - **Best** or **top rated:** sort by rating without inventing a minimum
+- An explicit numeric threshold keeps its exact number and operator: **greater than**, `>` with or without spaces, and an obvious unambiguous misspelling of the phrase are strict; **at least**, **or higher**, `>=`, `≥`, and `+` are inclusive.
 
 Time language uses these editable defaults:
 
@@ -702,6 +703,8 @@ Time language uses these editable defaults:
 Multiple values within one group use **OR**, while different groups combine with **AND**. For example, Persian or Italian cuisines serving pizza or kebab.
 
 Requirements without a dedicated filter, such as a dish or atmosphere preference, remain in the intent and may be included in Text Search. FoodFind does not present text relevance as proof. For example: **“Kebab availability is not verified—check the menu or call.”** A criterion that cannot be used safely is shown as unsupported rather than silently discarded or claimed as satisfied.
+
+Gemini normalizes an obvious misspelling in a food, dish, or cuisine name only when the surrounding context makes the intended meaning clear. The standard spelling is used in the search intent, and the correction is shown as an assumption with the user's original wording. FoodFind does not use a hard-coded spelling list or silently correct ambiguous wording.
 
 `SearchIntent` now keeps five explicit parts:
 
@@ -726,7 +729,7 @@ This preserves what the user asked for while keeping assumptions reviewable and 
 
 FoodFind uses a provider-neutral `SearchInterpreter` port. Google Gemini is the first adapter, with stable `gemini-3.6-flash` as the configurable default.
 
-The adapter uses Google's `google-genai` Python SDK and sends the Pydantic-generated JSON Schema through `response_json_schema`. This path preserves strict object validation and numeric rating enums that the legacy `response_schema` conversion cannot represent reliably. FoodFind validates the returned value again before converting it into the domain `SearchIntent`. Provider failures become a provider-neutral `SearchInterpreterError`.
+The adapter uses Google's `google-genai` Python SDK and sends the Pydantic-generated JSON Schema through `response_json_schema`. This path preserves strict object validation, exact numeric rating thresholds, and the rating-comparison enum. FoodFind validates the returned value again before converting it into the domain `SearchIntent`. Provider failures become a provider-neutral `SearchInterpreterError`.
 
 `GEMINI_API_KEY` stays in the server-side `.env` file and is separate from the Google Maps key. `GEMINI_MODEL` may replace the default without changing domain or application code. Automated tests inject a fake Gemini client and never make a live request.
 
@@ -901,7 +904,7 @@ Interpretation and place search are retried only through another explicit user a
 
 Google documents `currentOpeningHours` as covering the next seven days, including today, in the [Place resource reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places).
 
-## Defer food-match precision and exact rating comparisons
+## Defer food-match precision
 
 - **Date:** 2026-07-25
 - **Status:** Future enhancement
@@ -912,13 +915,31 @@ FoodFind will not currently infer food availability from a business name, LLM re
 
 Future work must improve food-search accuracy and make match explanations less confusing while remaining honest about unverified menu items. The evidence sources, filtering behavior, ranking behavior, and explanation rules will be researched and decided when that work begins.
 
-FoodFind will also defer arbitrary rating comparisons. The current structured filter remains limited to 3.0, 3.5, 4.0, and 4.5 minimum presets. A request such as **rating greater than 4.8** stays unsupported rather than being rounded. Future work must represent and apply exact comparison language correctly; the detailed behavior and implementation approach remain undecided.
-
 ### Rationale
 
 - Removing weak matches without reliable evidence could hide relevant businesses.
 - Provider classification and verified menu availability are different claims and need different explanations.
-- Google rounds `minRating` upward to a half-point value, so it cannot directly express every natural-language threshold.
+
+## Exact natural-language rating comparisons
+
+- **Date:** 2026-07-31
+- **Status:** Current behavior
+
+### Decision
+
+FoodFind preserves an explicit rating threshold from 0 to 5 and whether the user requested **greater than** or **at least**. Manual controls remain the simple 3.0+, 3.5+, 4.0+, and 4.5+ presets. An exact smart-search comparison appears as a custom value in the same rating control; choosing a manual preset replaces it.
+
+The interpreter treats textual and symbolic forms consistently. `> 4.7` and `>4.7` are the same strict comparison as **greater than 4.7**; `>= 4.7`, `≥4.7`, and `4.7+` are inclusive. An obvious unambiguous misspelling in the comparison phrase may be normalized without changing the number or operator.
+
+Google rounds `minRating` upward to a half-point value. FoodFind therefore sends the greatest half-point that does not exceed the requested threshold, then applies the exact comparison to the returned normalized ratings. For **rating greater than 4.8**, Google receives `minRating: 4.5`; FoodFind excludes ratings of 4.8 or lower. **At least 4.8** includes 4.8. Missing ratings do not satisfy either comparison.
+
+This remains one Enterprise Text Search request with `places.rating`. It creates no Place Details request and does not change the explicit-search lifecycle. The safe coarse prefilter can still leave fewer than 20 visible candidates because continuation batches remain deferred.
+
+### Rationale
+
+- Preserving the number and operator keeps the user's request exact.
+- A lower safe provider prefilter avoids losing valid 4.9 results through Google's upward rounding.
+- Local verification makes the behavior provider-independent and testable with mocked responses.
 
 ## Phase 5 map provider and current-location submission
 

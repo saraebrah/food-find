@@ -8,7 +8,7 @@ from app.api.search_models import SearchCriteriaRequest
 from app.domain.search import (
     CommonFood,
     Cuisine,
-    MinimumRating,
+    RatingComparison,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -40,7 +40,8 @@ class SearchFiltersResponse(BaseModel):
     cuisines: list[Cuisine]
     common_foods: list[CommonFood]
     open_now: bool
-    minimum_rating: MinimumRating | None
+    minimum_rating: float | None
+    rating_comparison: RatingComparison
     dine_in: bool
     takeout: bool
 
@@ -51,6 +52,7 @@ class SearchFiltersResponse(BaseModel):
             common_foods=list(filters.common_foods),
             open_now=filters.open_now,
             minimum_rating=filters.minimum_rating,
+            rating_comparison=filters.rating_comparison,
             dine_in=filters.dine_in,
             takeout=filters.takeout,
         )

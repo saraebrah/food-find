@@ -40,9 +40,22 @@ Six explicitly confirmed Google Text Search requests were made in total. One ini
 
 Using the expectations exactly as recorded, five of ten examples matched. The Earls case may be stale or incorrect because the live evidence directly described sushi tacos; it should be rechecked before being used as a lasting evaluation case.
 
+## Pro pagination follow-up
+
+On July 31, 2026, FoodFind repeated **chocolate cake** at 2 km with Pro-only fields and requested all three available pages. This made three requests and returned 60 results without reviews or contextual evidence.
+
+- Bellissimo Pizzeria appeared as result 37 on page 2.
+- CRAFT Beer Market did not appear in the first 60.
+- Later pages increased candidate coverage but also included weaker matches such as grocery stores and generic cafés.
+- The Pro-only first page was not identical to the earlier Enterprise + Atmosphere first page. Google does not guarantee consistent result lists across repeated searches.
+
+This confirms that pagination can recover some expected candidates omitted from the first 20, but it cannot guarantee that every expected business will be found or improve the quality of each candidate.
+
 ## Billing and attribution
 
-Each request included `places.reviews`. Google classifies that field as **Text Search Enterprise + Atmosphere**, and a Text Search request is billed according to the highest-tier requested field. Six such requests were made, including the discarded-radius request. The Google Cloud billing report can take time to display individual requests.
+Each evidence request included `places.reviews`. Google classifies that field as **Text Search Enterprise + Atmosphere**, and a Text Search request is billed according to the highest-tier requested field. Six such requests were made, including the discarded-radius request.
+
+The pagination follow-up made three separate **Text Search Pro** requests because it requested only place IDs, names, addresses, and the continuation token. The Google Cloud billing report can take time to display individual requests.
 
 If review evidence is displayed in FoodFind, the interface must:
 
@@ -55,4 +68,6 @@ If review evidence is displayed in FoodFind, the interface must:
 
 The probe was useful as research: it confirmed that Toronto receives query-related review justifications and exposed their limitations. It did not demonstrate consistent enough evidence to build Iteration 3 as currently planned.
 
-Do not add review-supported production ranking yet. The evidence can be stale, partial, or generic, and two expected chocolate-cake businesses never entered the candidate set. Phase 6 remains paused after Step 1 while the next search-quality approach is reconsidered. Step 2 has not started.
+Do not add review-supported production ranking yet. The evidence can be stale, partial, or generic. Pagination recovered one missing chocolate-cake business but not the other, showing that candidate coverage and evidence accuracy need separate solutions.
+
+On-demand pagination is worth considering before review-supported ranking because it provides more candidates and supports the intended infinite-scroll experience. It should not be presented as a complete search-quality solution. Phase 6 remains paused after Step 1 while the next approach is reconsidered. Step 2 has not started.

@@ -412,7 +412,7 @@ def test_search_rejects_unsupported_availability_without_provider_call(
     ("filters", "sort"),
     (
         ({"delivery": True}, "provider_default"),
-        ({"minimum_rating": 3.7}, "provider_default"),
+        ({"minimum_rating": 5.1}, "provider_default"),
         ({"place_types": ["restaurant"]}, "provider_default"),
         ({}, "price"),
     ),

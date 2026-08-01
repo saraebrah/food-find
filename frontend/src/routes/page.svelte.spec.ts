@@ -71,6 +71,7 @@ const interpretation: SearchInterpretation = {
 			common_foods: ['kebab'],
 			open_now: false,
 			minimum_rating: 4,
+			rating_comparison: 'at_least',
 			dine_in: true,
 			takeout: false
 		},
@@ -206,6 +207,59 @@ describe('FoodFind page request lifecycle', () => {
 				],
 				availability_window: expect.objectContaining({
 					starts_at: expect.stringContaining('2026-07-23T19:00:00')
+				})
+			}),
+			expect.any(AbortSignal)
+		);
+	});
+
+	it('preserves an exact smart-search rating until a manual preset replaces it', async () => {
+		vi.mocked(interpretSearch).mockResolvedValueOnce({
+			...interpretation,
+			search_criteria: {
+				...interpretation.search_criteria,
+				filters: {
+					...interpretation.search_criteria.filters,
+					minimum_rating: 4.8,
+					rating_comparison: 'greater_than'
+				}
+			},
+			availability_window: null,
+			assumptions: [],
+			unsupported_criteria: []
+		});
+		render(FoodFindPage);
+		await chooseTorontoLocation();
+		await page
+			.getByRole('textbox', { name: 'Smart search' })
+			.fill('burger with rating greater than 4.8');
+
+		await page.getByRole('button', { name: 'Apply request' }).click();
+
+		await expect
+			.element(page.getByRole('option', { name: 'Greater than 4.8 (smart search)' }))
+			.toBeInTheDocument();
+		expect(
+			(await page.getByLabelText('Minimum rating').element() as HTMLSelectElement).value
+		).toBe('custom');
+		await page.getByRole('button', { name: 'Search places' }).click();
+		expect(searchPlaces).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				filters: expect.objectContaining({
+					minimum_rating: 4.8,
+					rating_comparison: 'greater_than'
+				})
+			}),
+			expect.any(AbortSignal)
+		);
+
+		await page.getByLabelText('Minimum rating').selectOptions('4.5');
+		await page.getByRole('button', { name: 'Search places' }).click();
+		expect(searchPlaces).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				filters: expect.objectContaining({
+					minimum_rating: 4.5,
+					rating_comparison: 'at_least'
 				})
 			}),
 			expect.any(AbortSignal)
@@ -477,6 +531,7 @@ describe('FoodFind page request lifecycle', () => {
 					common_foods: [],
 					open_now: false,
 					minimum_rating: null,
+					rating_comparison: 'at_least',
 					dine_in: false,
 					takeout: false
 				},
@@ -688,6 +743,7 @@ describe('FoodFind page request lifecycle', () => {
 					common_foods: ['pizza'],
 					open_now: true,
 					minimum_rating: 4.5,
+					rating_comparison: 'at_least',
 					dine_in: true,
 					takeout: true
 				},

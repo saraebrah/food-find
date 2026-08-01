@@ -2,7 +2,13 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.domain.search import CommonFood, Cuisine, MinimumRating, SearchSort
+from app.domain.search import (
+    CommonFood,
+    Cuisine,
+    MinimumRating,
+    RatingComparison,
+    SearchSort,
+)
 from app.domain.search_interpretation import (
     FOODFIND_SEARCH_CAPABILITIES,
     SearchInterpretationContext,
@@ -28,7 +34,10 @@ def test_context_exposes_local_date_time_and_supported_capabilities() -> None:
     assert context.capabilities is FOODFIND_SEARCH_CAPABILITIES
     assert context.capabilities.cuisines == tuple(Cuisine)
     assert context.capabilities.common_foods == tuple(CommonFood)
-    assert context.capabilities.minimum_ratings == tuple(MinimumRating)
+    assert context.capabilities.minimum_rating_presets == tuple(MinimumRating)
+    assert context.capabilities.rating_comparisons == tuple(RatingComparison)
+    assert context.capabilities.minimum_rating_value == 0
+    assert context.capabilities.maximum_rating_value == 5
     assert context.capabilities.sort_options == tuple(SearchSort)
     assert context.capabilities.descriptive_requirement_kinds == tuple(
         DescriptiveRequirementKind

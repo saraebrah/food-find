@@ -21,6 +21,7 @@ This section records how search works after each change. Add a new iteration onl
 
 - When the user requests a cuisine, common food, or free-form dish, FoodFind sends those terms as the main Google query instead of placing them after the broad **restaurants or cafes or bars or bakeries** phrase.
 - Examples include **Italian food**, **burgers**, **Persian kebab**, and the free-form dish **matcha**.
+- When a specific dish already contains a selected common-food term, FoodFind sends the specific dish only. For example, **margherita pizza** is not expanded to **pizza margherita pizza**.
 - When the request has no food-specific term, FoodFind keeps the broad food-business query. A preference such as **quiet atmosphere** is added to that broad query.
 - Location, radius, filters, and defensive removal of known non-food results work as before.
 - The change still uses one Google Text Search request and the same response fields. It improves the query focus but does not verify menu availability or reveal Google's relevance score.
@@ -213,7 +214,8 @@ Map selection and device current location are available in Phase 5.
 - Every Svelte search snapshot contains `filters` and `sort` alongside location and radius.
 - The filter state contains ordered `cuisines` and `common_foods` lists; both default to empty.
 - The `open_now` filter defaults to false.
-- The `minimum_rating` filter defaults to no minimum and offers 3.0+, 3.5+, 4.0+, and 4.5+.
+- The manual `minimum_rating` filter defaults to no minimum and offers 3.0+, 3.5+, 4.0+, and 4.5+.
+- Smart search may set an exact threshold from 0 to 5 and preserves whether the user said **greater than** or **at least**. The rating control shows the exact interpreted comparison; choosing a manual preset replaces it.
 - The `dine_in` and `takeout` service filters are independent and default to false.
 - Users can choose Google's recommended order (`provider_default`), ascending distance (`distance`), or highest rating first (`rating`).
 - FastAPI converts both values into FoodFind-owned `SearchFilters` and `SearchSort` domain values before the application use case runs.
@@ -231,8 +233,8 @@ Map selection and device current location are available in Phase 5.
 - Cuisine, common-food, and distance controls do not add higher-tier response fields. The base Text Search field mask remains Pro.
 - When Open now is active, the adapter sends `openNow=true` and adds only `places.currentOpeningHours` to the search field mask. This makes that Text Search request Enterprise without changing the default request.
 - FoodFind also requires the normalized `open_now` value to be explicitly true; false and missing values do not satisfy the active filter.
-- When a minimum rating is selected, the adapter sends Text Search `minRating` and adds `places.rating` to the conditional Enterprise field mask. Rating sorting requests the same response field without sending a minimum.
-- A selected minimum keeps ratings greater than or equal to its threshold. A missing rating does not satisfy a minimum.
+- When a rating threshold is active, the adapter sends the greatest half-point `minRating` that does not exceed the requested value and adds `places.rating` to the conditional Enterprise field mask. For **rating greater than 4.8**, Google receives `4.5`, avoiding Google's upward rounding to `5.0`.
+- FoodFind applies the exact comparison to Google's returned ratings: **greater than 4.8** excludes 4.8, while **at least 4.8** includes it. A missing rating satisfies neither comparison.
 - Rating sorting is applied highest-first after Google returns its candidates. Missing ratings remain available when no minimum is active and appear last; equal ratings preserve Google's relative order.
 - When Dine-in is selected, the Google adapter adds only `places.dineIn`; when Takeout is selected, it adds only `places.takeout`. Either field makes that one search Enterprise + Atmosphere. Inactive service filters add neither field.
 - Text Search has no request parameter for Dine-in or Takeout. FoodFind therefore retains only places whose normalized value is explicitly true for every selected service; false and missing values do not satisfy the filter.
@@ -262,8 +264,9 @@ Map selection and device current location are available in Phase 5.
 - An Open now search sends `openNow=true`, adds only `places.currentOpeningHours`, makes one Enterprise Text Search request, and returns only places whose value is true.
 - A place with false or missing current-opening-hours data does not satisfy Open now.
 - Selecting a minimum rating or rating sorting adds only `places.rating` to the search field mask and makes no extra request.
-- Supported minimum ratings are exactly 3.0, 3.5, 4.0, and 4.5; unsupported thresholds return HTTP `422`.
-- Smart-search comparisons outside those presets, such as **rating greater than 4.8**, remain unsupported and must not be rounded or silently applied as another threshold.
+- Manual minimum-rating choices remain 3.0, 3.5, 4.0, and 4.5. Smart search and the API can preserve an exact threshold from 0 to 5.
+- **Greater than** and **at least** remain distinct through interpretation, browser review, the search request, and final filtering. The threshold is never rounded upward or silently changed.
+- Google receives only a safe half-point prefilter at or below the exact threshold; FoodFind applies the exact comparison to the returned candidates.
 - A missing rating is excluded by a minimum filter but retained at the end of rating-sorted results when no minimum is active.
 - Rating sorting is descending and stable for equal values.
 - Combining multiple Enterprise filters adds each required field once to the same Text Search request.
@@ -344,6 +347,7 @@ Map selection and device current location are available in Phase 5.
 - The browser sends one interpretation request only when the user selects **Apply request**. Loading, reloading, typing, rendering, and editing controls send no LLM request.
 - A successful interpretation replaces the radius, filters, and sort with the validated values and clears stale results without starting a Google place search.
 - The review panel displays assumptions, unsupported criteria, descriptive text-relevance preferences, and an editable availability window. Removing or editing the time preference is local.
+- Smart search normalizes an obvious misspelling of a food, dish, or cuisine only when the surrounding words make the intended meaning clear. It uses the standard spelling for search and shows the correction as an assumption. Ambiguous wording is not silently corrected.
 - Unsupported criteria stay visible but are not sent to the place search. The user may explicitly search with the supported criteria that remain.
 - Manual edits after interpretation remain local and visibly mark the criteria as edited. They do not reinterpret the sentence.
 - Selecting **Search** takes one immutable snapshot of the current structured controls, descriptive requirements, and editable availability window. It makes one place-search request and does not call Gemini again.
@@ -367,6 +371,7 @@ Map selection and device current location are available in Phase 5.
 - **Good rated** means a minimum rating of 4.0.
 - **Highly rated** means a minimum rating of 4.5.
 - **Best** or **top rated** means rating sort with no invented minimum.
+- **Greater than**, `>` with or without spaces, and an obvious unambiguous misspelling of the phrase are strict comparisons. **At least**, **or higher**, `>=`, `≥`, and a trailing `+` are inclusive comparisons.
 - **Tonight** means 6 p.m. to midnight, and **dinner** means 5 p.m. to 10 p.m.
 - A specific time, such as **at 7 p.m.**, means open at that exact instant; its start and end timestamps are equal.
 - If a requested time window has already started, the window begins at the current time.

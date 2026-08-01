@@ -11,6 +11,7 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
+    RatingComparison,
     SearchCriteria,
     SearchFilters,
     SearchSort,
@@ -40,6 +41,7 @@ def test_validated_output_converts_to_provider_independent_intent() -> None:
                 "common_foods": ["kebab"],
                 "open_now": False,
                 "minimum_rating": 4.5,
+                "rating_comparison": "at_least",
                 "dine_in": True,
                 "takeout": False,
             },
@@ -74,6 +76,7 @@ def test_validated_output_converts_to_provider_independent_intent() -> None:
         cuisines=(Cuisine.PERSIAN,),
         common_foods=(CommonFood.KEBAB,),
         minimum_rating=MinimumRating.FOUR_AND_HALF,
+        rating_comparison=RatingComparison.AT_LEAST,
         dine_in=True,
     )
     assert intent.search_criteria.sort is SearchSort.DISTANCE
@@ -92,6 +95,32 @@ def test_validated_output_converts_to_provider_independent_intent() -> None:
     )
     assert intent.assumptions[0].source_text == "highly rated"
     assert intent.unsupported_criteria[0].text == "not crowded"
+
+
+def test_output_preserves_an_exact_strict_rating_comparison() -> None:
+    output = SearchIntentOutput.model_validate(
+        {
+            "radius_meters": 1_000,
+            "filters": {
+                "cuisines": [],
+                "common_foods": [],
+                "open_now": False,
+                "minimum_rating": 4.8,
+                "rating_comparison": "greater_than",
+                "dine_in": False,
+                "takeout": False,
+            },
+            "sort": "provider_default",
+            "descriptive_requirements": [],
+            "availability_window": None,
+            "assumptions": [],
+            "unsupported_criteria": [],
+        }
+    )
+
+    filters = output.to_domain(base_criteria=make_base_criteria()).search_criteria.filters
+    assert filters.minimum_rating == 4.8
+    assert filters.rating_comparison is RatingComparison.GREATER_THAN
 
 
 @pytest.mark.parametrize(

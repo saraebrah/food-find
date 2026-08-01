@@ -74,6 +74,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 			common_foods: [],
 			open_now: false,
 			minimum_rating: null,
+			rating_comparison: 'at_least',
 			dine_in: false,
 			takeout: false
 		},
@@ -111,6 +112,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 			common_foods: ['pizza'],
 			open_now: true,
 			minimum_rating: 4.5,
+			rating_comparison: 'at_least',
 			dine_in: true,
 			takeout: true
 		},
@@ -140,6 +142,7 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 						common_foods: ['kebab'],
 						open_now: false,
 						minimum_rating: 4,
+						rating_comparison: 'at_least',
 						dine_in: true,
 						takeout: false
 					},
@@ -199,6 +202,7 @@ test('applies smart-search criteria once and keeps review edits local', async ({
 			common_foods: ['kebab'],
 			open_now: false,
 			minimum_rating: 4.5,
+			rating_comparison: 'at_least',
 			dine_in: true,
 			takeout: false
 		},

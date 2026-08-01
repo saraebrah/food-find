@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from math import asin, cos, radians, sin, sqrt
+from math import asin, cos, isfinite, radians, sin, sqrt
 
 from app.domain.location import SelectedLocation
 from app.domain.place import Coordinates
@@ -47,6 +47,11 @@ class MinimumRating(float, Enum):
     FOUR_AND_HALF = 4.5
 
 
+class RatingComparison(str, Enum):
+    AT_LEAST = "at_least"
+    GREATER_THAN = "greater_than"
+
+
 @dataclass(frozen=True, slots=True)
 class SearchFilters:
     """Normalized filters supported by the current search implementation."""
@@ -54,7 +59,8 @@ class SearchFilters:
     cuisines: tuple[Cuisine, ...] = ()
     common_foods: tuple[CommonFood, ...] = ()
     open_now: bool = False
-    minimum_rating: MinimumRating | None = None
+    minimum_rating: float | None = None
+    rating_comparison: RatingComparison = RatingComparison.AT_LEAST
     dine_in: bool = False
     takeout: bool = False
 
@@ -63,6 +69,16 @@ class SearchFilters:
             raise ValueError("Cuisines must be unique")
         if len(set(self.common_foods)) != len(self.common_foods):
             raise ValueError("Common foods must be unique")
+        if self.minimum_rating is None:
+            if self.rating_comparison is not RatingComparison.AT_LEAST:
+                raise ValueError(
+                    "Rating comparison requires a minimum rating"
+                )
+            return
+        normalized_rating = float(self.minimum_rating)
+        if not isfinite(normalized_rating) or not 0 <= normalized_rating <= 5:
+            raise ValueError("Minimum rating must be between 0 and 5")
+        object.__setattr__(self, "minimum_rating", normalized_rating)
 
 
 class SearchSort(str, Enum):

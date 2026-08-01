@@ -10,6 +10,7 @@ from app.domain.search import (
     CommonFood,
     Cuisine,
     MinimumRating,
+    RatingComparison,
     SearchFilters,
     SearchSort,
 )
@@ -111,6 +112,33 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
 
 
 @pytest.mark.anyio
+async def test_text_search_uses_a_safe_floor_for_an_exact_rating() -> None:
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["minRating"] == 4.5
+        assert "places.rating" in request.headers["X-Goog-FieldMask"]
+        return httpx.Response(200, request=request, json={"places": []})
+
+    transport = httpx.MockTransport(handle_request)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        gateway = GooglePlacesGateway(
+            api_key="test-api-key",
+            http_client=http_client,
+        )
+
+        await gateway.search_nearby(
+            latitude=43.6453,
+            longitude=-79.3806,
+            radius_meters=1_000,
+            filters=SearchFilters(
+                minimum_rating=4.8,
+                rating_comparison=RatingComparison.GREATER_THAN,
+            ),
+            sort=SearchSort.PROVIDER_DEFAULT,
+        )
+
+
+@pytest.mark.anyio
 async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
@@ -192,6 +220,20 @@ def test_text_search_uses_a_descriptive_dish_as_the_focused_query() -> None:
     )
 
     assert query == "matcha"
+
+
+def test_text_search_omits_common_food_repeated_by_specific_dish() -> None:
+    query = GooglePlacesGateway._build_text_query(
+        filters=SearchFilters(common_foods=(CommonFood.PIZZA,)),
+        descriptive_requirements=(
+            DescriptiveRequirement(
+                text="margherita pizza",
+                kind=DescriptiveRequirementKind.DISH,
+            ),
+        ),
+    )
+
+    assert query == "margherita pizza"
 
 
 def test_text_search_keeps_the_broad_scope_for_only_non_food_preferences() -> None:

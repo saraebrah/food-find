@@ -1,7 +1,7 @@
 import re
 
 from app.domain.place import MatchReason, MatchReasonKind, Place
-from app.domain.search import SearchCriteria
+from app.domain.search import RatingComparison, SearchCriteria
 from app.domain.search_intent import (
     AvailabilityWindow,
     DescriptiveRequirement,
@@ -49,12 +49,18 @@ def build_match_reasons(
         criteria.filters.minimum_rating is not None
         and place.rating is not None
     ):
+        comparison_text = (
+            f"is greater than your {criteria.filters.minimum_rating:.1f} threshold."
+            if criteria.filters.rating_comparison
+            is RatingComparison.GREATER_THAN
+            else f"meets your {criteria.filters.minimum_rating:.1f} minimum."
+        )
         confirmed.append(
             _reason(
                 MatchReasonKind.CONFIRMED,
                 (
-                    f"{provider_name} rating {place.rating:.1f} meets your "
-                    f"{criteria.filters.minimum_rating.value:.1f} minimum."
+                    f"{provider_name} rating {place.rating:.1f} "
+                    f"{comparison_text}"
                 ),
             )
         )
