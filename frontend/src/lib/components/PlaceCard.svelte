@@ -3,19 +3,20 @@
 
 	import { ApiError, getPlaceDetails } from '$lib/api';
 	import { directionsHref, formatDistance, providerName } from '$lib/search';
-	import type { Place, PlaceDetails } from '$lib/types';
+	import type { Place, PlaceDetails, SelectedLocation } from '$lib/types';
 	import PlaceDetailsPanel from './PlaceDetailsPanel.svelte';
 
 	interface Props {
 		place: Place;
+		origin: SelectedLocation;
 		selected?: boolean;
 		onSelect?: () => void;
 	}
 
-	let { place, selected = false, onSelect = () => {} }: Props = $props();
+	let { place, origin, selected = false, onSelect = () => {} }: Props = $props();
 	const componentId = $props.id();
 	const detailsId = `${componentId}-details`;
-	const directions = $derived(directionsHref(place));
+	const directions = $derived(directionsHref(place, origin));
 	let cardElement: HTMLLIElement;
 	let details = $state<PlaceDetails | null>(null);
 	let detailsOpen = $state(false);

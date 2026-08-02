@@ -7,7 +7,8 @@ import {
 	parseCoordinates,
 	phoneHref,
 	selectedLocationFromCoordinates,
-	websiteHref
+	websiteHref,
+	websiteLabel
 } from './search';
 
 describe('coordinate parsing', () => {
@@ -67,19 +68,35 @@ describe('action URLs', () => {
 		expect(websiteHref('not a URL')).toBeNull();
 	});
 
+	it('shows a concise website domain without changing its destination', () => {
+		expect(websiteLabel('https://www.example.com/menu')).toBe('example.com');
+		expect(websiteLabel('https://orders.example.com/menu')).toBe('orders.example.com');
+	});
+
 	it('builds an encoded Google Maps directions URL without an API key', () => {
-		const href = directionsHref({
-			provider: 'google',
-			provider_place_id: 'google-place-1',
-			name: 'Example Restaurant',
-			address: '1 Front Street, Toronto, ON',
-			coordinates: { latitude: 43.6454, longitude: -79.3805 }
-		});
+		const href = directionsHref(
+			{
+				provider: 'google',
+				provider_place_id: 'google-place-1',
+				name: 'Example Restaurant',
+				address: '1 Front Street, Toronto, ON',
+				coordinates: { latitude: 43.6454, longitude: -79.3805 }
+			},
+			{
+				label: 'Toronto City Hall',
+				latitude: 43.6532,
+				longitude: -79.3832,
+				provider: 'google',
+				provider_place_id: 'origin-place-1'
+			}
+		);
 
 		expect(href).not.toBeNull();
 		const url = new URL(href!);
 		expect(url.origin + url.pathname).toBe('https://www.google.com/maps/dir/');
 		expect(url.searchParams.get('api')).toBe('1');
+		expect(url.searchParams.get('origin')).toBe('43.6532,-79.3832');
+		expect(url.searchParams.get('origin_place_id')).toBe('origin-place-1');
 		expect(url.searchParams.get('destination')).toBe('43.6454,-79.3805');
 		expect(url.searchParams.get('destination_place_id')).toBe('google-place-1');
 		expect(url.searchParams.has('key')).toBe(false);

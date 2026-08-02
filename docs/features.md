@@ -293,14 +293,15 @@ Map selection and device current location are available in Phase 5.
 - Dine-in and takeout are requested only when their corresponding Phase 3 filter is active. They are not displayed as extra result-summary data.
 - Each result has a **View details** control. Opening it requests only that place's rating, rating count, current opening hours and open status, phone, and website.
 - A fetched detail response is cached in browser memory while the current result list remains rendered. Closing and reopening the same result does not make another request; changing the search clears the cache and aborts in-flight detail requests.
-- Ratings identify their provider, current open status remains distinct from operational business status, and unavailable detail values are labelled instead of inferred.
+- Detail ratings use the concise source-labelled format **Google Maps rating: 4.9 (1,414)**, where the parenthesized value is the rating count. Current open status remains distinct from operational business status, and unavailable detail values are labelled instead of inferred.
 - A detail failure stays within the opened card and offers a retry without removing the search results.
-- For an unconfirmed business with an available phone number, the details include a **Call to confirm** `tel:` action and an optional **Show number** control.
+- For an unconfirmed business with an available phone number, the details include a visible number and a **Call to confirm** `tel:` action.
 - Available phone numbers are callable through `tel:` links. The action reads **Call to confirm** when operational status is unknown and **Call** otherwise.
-- The full phone number is hidden by default to keep the actions concise. **Show number** reveals a plain, copyable value and changes to **Hide number**; toggling it does not make a provider request.
-- Available `http:` or `https:` websites appear as a concise **Visit website** link and open in a new browser tab; the full provider URL is not displayed. Other URI schemes are not turned into links.
+- The provider-formatted phone number is always visible and selectable in a compact details row. On hover or keyboard focus, only that row is highlighted and reveals call then copy actions. Successful copying is confirmed; if browser clipboard access is unavailable, the number remains manually copyable.
+- Available `http:` or `https:` websites appear as a compact row showing the readable domain. On hover or keyboard focus, only that row is highlighted and reveals open then copy actions. The domain and open action launch the full safe URL in a new tab, while copy uses that full URL. Other URI schemes are not displayed as links.
+- Because touch devices do not have hover, contact actions remain visible there.
 - Every result with a usable destination has a **Get directions** action. It opens a universal Google Maps directions URL using the result coordinates and, for Google results, the Google place ID for more precise matching.
-- The directions link omits an origin so Google Maps can use the device's relevant starting location or ask the user for one. It does not force a travel mode.
+- The directions origin is the immutable selected-location snapshot submitted with that result search. FoodFind sends its coordinates and, when the location came from Google autocomplete, its Google place ID. It does not force a travel mode.
 - Creating or opening an action does not call a FoodFind API endpoint or add another Google Places request.
 
 ### Acceptance criteria
@@ -309,9 +310,9 @@ Map selection and device current location are available in Phase 5.
 - Provider adapters return normalized closure status rather than Google-specific status strings.
 - Explicitly temporary and permanently closed places do not reach the result cards.
 - Missing status produces an operational-status warning without treating the place as closed.
-- An unconfirmed place with an available phone number has a **Call to confirm** action and an on-demand copyable number.
+- An unconfirmed place with an available phone number has a visible number plus copy and **Call to confirm** actions.
 - On supported phones, the `tel:` link opens the dialer with the number populated; FoodFind does not claim that a browser can bypass the device's final call confirmation.
-- Selecting **Show number** reveals the already-fetched value without another detail request and **Hide number** conceals it again.
+- Copying a phone number or website uses the already-fetched value without another detail request and reports success or a manually-copyable fallback.
 - Provider attribution remains visible on every result.
 - Adding summary information does not create another Google request.
 - Loading a default first result list requests no Enterprise or Enterprise + Atmosphere field. Active Enterprise filters conditionally request only current opening hours and/or rating; active service filters conditionally request only dine-in and/or takeout.
@@ -320,8 +321,8 @@ Map selection and device current location are available in Phase 5.
 - The place-detail endpoint and response use `Cache-Control: no-store`, and the API key remains only in the server-to-Google header.
 - Phone links contain only a sanitized dialable value, and unsupported website URI schemes are never assigned to link destinations.
 - Website and Google Maps links that open a new tab use `noopener noreferrer`.
-- A Google Maps directions URL includes `api=1`, an encoded destination, and the Google place ID when the result came from Google.
-- Rendering website, phone, or directions actions does not increase the place-provider call count.
+- A Google Maps directions URL includes `api=1`, the submitted search origin, an encoded destination, and available Google place IDs for the origin and destination.
+- Rendering, copying, or opening website, phone, or directions actions does not increase the place-provider call count.
 - Automated tests verify field mapping, distance calculation, API output, and missing-field text without calling Google.
 
 ## Smart-search interpretation

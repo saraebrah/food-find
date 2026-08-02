@@ -866,22 +866,87 @@ button:disabled {
   padding-top: 0.2rem;
 }
 
-.place-phone,
-.place-website {
-  color: #4d4c45;
+.place-website-link {
+  min-width: 0;
+  flex: 0 1 auto;
+  color: #3f562b;
+  font-size: 0.9rem;
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.place-website-link {
-  color: #3f562b;
-  font-weight: 650;
+.place-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2rem;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.65rem;
+  background: transparent;
+  transition: background 150ms ease;
 }
 
-.place-phone-actions {
+.place-contact-row:hover,
+.place-contact-row:focus-within {
+  background: #f0efeb;
+}
+
+.place-contact-kind-icon {
+  display: grid;
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  color: #2f6857;
+}
+
+.place-contact-kind-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+
+.place-contact-kind-icon .place-contact-outline-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.place-phone-number {
+  min-width: 0;
+  flex: 0 1 auto;
+  color: #25251f;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.place-contact-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.55rem;
+  flex: none;
+  gap: 0;
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-width 150ms ease,
+    margin-left 150ms ease,
+    opacity 150ms ease,
+    gap 150ms ease;
+}
+
+.place-contact-row:hover .place-contact-actions,
+.place-contact-row:focus-within .place-contact-actions {
+  gap: 0.35rem;
+  max-width: 5rem;
+  margin-left: 0.15rem;
+  opacity: 1;
 }
 
 .place-action {
@@ -909,19 +974,56 @@ button:disabled {
   margin-right: 0.5rem;
 }
 
-.place-call-action {
-  margin: 0;
+.place-contact-action {
+  display: grid;
+  box-sizing: border-box;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: 999px;
+  place-items: center;
+  background: #deded9;
+  color: #25251f;
+  text-decoration: none;
 }
 
-.place-show-number-button {
-  padding: 0.55rem 0.85rem;
-  background: #e9efdf;
-  color: #30451f;
-  font-size: 0.9rem;
+.place-contact-action:hover {
+  background: #d1d1cb;
 }
 
-.place-show-number-button:hover:not(:disabled) {
-  background: #dce7cc;
+.place-contact-action:focus-visible {
+  outline: 3px solid #9ab474;
+  outline-offset: 2px;
+}
+
+.place-contact-action svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.place-copy-status {
+  margin: 0.3rem 0 0;
+  padding-top: 0 !important;
+  color: #4d4c45;
+  font-size: 0.82rem;
+}
+
+@media (hover: none) {
+  .place-contact-row {
+    background: #f0efeb;
+  }
+
+  .place-contact-actions {
+    gap: 0.35rem;
+    max-width: 5rem;
+    margin-left: 0.15rem;
+    opacity: 1;
+  }
 }
 
 .place-detail-status {

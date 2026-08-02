@@ -170,19 +170,26 @@ def test_search_script_is_served_as_a_static_asset(client: TestClient) -> None:
     assert '"Call"' in response.text
     assert "function websiteHref(" in response.text
     assert 'url.protocol !== "http:" && url.protocol !== "https:"' in response.text
-    assert "function directionsHref(" in response.text
+    assert "function directionsHref(place, origin)" in response.text
     assert 'new URL("https://www.google.com/maps/dir/")' in response.text
     assert 'url.searchParams.set("api", "1")' in response.text
+    assert 'url.searchParams.set("origin",' in response.text
+    assert 'url.searchParams.set("origin_place_id"' in response.text
     assert 'url.searchParams.set("destination_place_id"' in response.text
+    assert "renderPlaces(places, location)" in response.text
     assert 'directionsLink.textContent = "Get directions"' in response.text
     assert 'websiteLink.target = "_blank"' in response.text
     assert 'websiteLink.rel = "noopener noreferrer"' in response.text
-    assert 'websiteLink.textContent = "Visit website"' in response.text
-    assert 'showNumberButton.textContent = "Show number"' in response.text
-    assert 'showNumberButton.textContent = "Hide number"' in response.text
-    assert 'phoneNumber.hidden = true' in response.text
-    assert 'phoneNumber.hidden = !phoneNumber.hidden' in response.text
-    assert 'showNumberButton.setAttribute("aria-expanded"' in response.text
+    assert "function websiteLabel(" in response.text
+    assert "websiteLink.textContent = safeWebsiteLabel" in response.text
+    assert 'openWebsiteLink.setAttribute("aria-label"' in response.text
+    assert 'copyWebsiteButton.setAttribute("aria-label"' in response.text
+    assert "await navigator.clipboard.writeText(safeWebsiteHref)" in response.text
+    assert 'copyButton.setAttribute("aria-label"' in response.text
+    assert "navigator.clipboard?.writeText" in response.text
+    assert "await navigator.clipboard.writeText(details.phone_number)" in response.text
+    assert 'copyStatus.textContent = "Phone number copied"' in response.text
+    assert 'phoneNumber.textContent = details.phone_number' in response.text
     assert "function closedBusinessStatus(" not in response.text
     assert '"Category unavailable"' in response.text
     assert '"Address unavailable"' in response.text

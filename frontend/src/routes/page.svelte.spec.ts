@@ -501,6 +501,12 @@ describe('FoodFind page request lifecycle', () => {
 
 		await page.getByRole('button', { name: 'Search places' }).click();
 		await expect.element(page.getByRole('heading', { name: 'Test Kitchen' })).toBeVisible();
+		const directionsUrl = new URL(
+			(
+				(await page.getByRole('link', { name: 'Get directions' }).element()) as HTMLAnchorElement
+			).href
+		);
+		expect(directionsUrl.searchParams.get('origin')).toBe('43.6532,-79.3832');
 		await vi.waitFor(() =>
 			expect(mapRenderer.render).toHaveBeenLastCalledWith({
 				center: { latitude: 43.6532, longitude: -79.3832 },

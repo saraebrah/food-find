@@ -140,16 +140,16 @@ Service options such as dine-in, takeout, and delivery require **Enterprise + At
 
 `businessStatus` is normalized at the adapter boundary. `SearchPlaces` excludes businesses explicitly reported temporarily or permanently closed. A missing status does not prove closure, so the place remains in results with an operational-status warning. `OPERATIONAL` means the business has not been reported closed; it must not be presented as “open now.” Current open status requires opening-hours data.
 
-When details are retrieved for a place whose operational status is unconfirmed, FoodFind shows a **Call to confirm** action. Other places use **Call**. The full number is hidden by default but can be revealed as plain, copyable text with **Show number** and concealed again with **Hide number**. Revealing it is entirely a browser display change over the already-fetched details and creates no provider request.
+When details are retrieved for a place whose operational status is unconfirmed, FoodFind labels the call action **Call to confirm**. Other places use **Call**. The provider-formatted number remains visible and selectable. On hover or keyboard focus, its compact row highlights and reveals call then copy actions. Touch devices keep the actions visible because they have no hover. Copying uses the browser clipboard when available and otherwise leaves the number available for manual copying. Neither action creates a provider request.
 
 The call action uses a `tel:` link so supported phones and configured desktop calling applications can handle it. The link can populate a device's dialer, but a web page cannot bypass the operating system's final confirmation and place a telephone call automatically.
 
 Result actions are browser links rather than additional provider operations:
 
-- Phone links use a sanitized `tel:` value. The provider-supplied display number is available through an explicit show/hide control rather than occupying space by default.
-- Website values become links only when they use the `http:` or `https:` scheme. They open in a separate tab with `noopener noreferrer`.
-- Directions use `https://www.google.com/maps/dir/?api=1` with the result coordinates as the destination. Google results also include their Google place ID to identify the establishment precisely; a future non-Google result can still use its coordinates without mislabelling another provider's ID as a Google ID.
-- The directions URL omits origin and travel mode so Google Maps can use or request the user's starting point and offer relevant travel choices.
+- Phone links use a sanitized `tel:` value, while the provider-supplied display number remains visible and is the value copied to the clipboard.
+- Website values become links only when they use the `http:` or `https:` scheme. The compact details row displays the domain; hover or keyboard focus reveals open then copy actions, while touch devices keep them visible. The domain link and open icon launch the full URL in a separate tab with `noopener noreferrer`; copy uses that full URL.
+- Directions use `https://www.google.com/maps/dir/?api=1` with the immutable submitted search-location snapshot as the origin and the result coordinates as the destination. When either endpoint came from Google, its Google place ID is included for precision; coordinates remain the provider-independent fallback.
+- Supplying the origin avoids asking Google Maps to infer or request a different starting point. The link does not force a travel mode, so Google Maps can still offer relevant travel choices.
 
 Google Maps URLs do not require an API key and do not create another Places API request. FoodFind therefore does not request Google's `googleMapsLinks` field solely to implement directions.
 

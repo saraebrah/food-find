@@ -121,3 +121,14 @@ Address or Google Maps link: 252 Queen St W, Toronto, ON M5T 2X9
 Expected: should appear
 Reason: reviews mention crispy which is the important part of the search, it's not just sushi taco, it's crispy sushi taco
 Evidence, if available:
+
+## Example 11
+Search: steak
+Location: 318 King St E, Toronto
+Radius: 1 km
+
+Business: Domino's Pizza
+Address or Google Maps link: 67 Richmond St E, Toronto, ON M5C 0B7
+Expected: should not appear
+Reason:
+Evidence, if available:

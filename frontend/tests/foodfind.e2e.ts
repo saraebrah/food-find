@@ -67,6 +67,13 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	await chooseTorontoLocation(page);
 	await page.getByRole('button', { name: 'Search places' }).click();
 	await expect(page.getByRole('heading', { name: 'Browser Test Cafe' })).toBeVisible();
+	const directionsHref = await page
+		.getByRole('link', { name: 'Get directions' })
+		.getAttribute('href');
+	expect(directionsHref).not.toBeNull();
+	expect(new URL(directionsHref!).searchParams.get('origin')).toBe(
+		'43.6532,-79.3832'
+	);
 	expect(searchRequests).toBe(1);
 	expect(searchBodies[0]).toMatchObject({
 		filters: {
@@ -87,12 +94,12 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	expect(detailRequests).toBe(0);
 
 	await page.getByRole('button', { name: 'View details' }).click();
-	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
+	await expect(page.getByText('Google Maps rating: 4.5 (42)')).toBeVisible();
 	expect(detailRequests).toBe(1);
 
 	await page.getByRole('button', { name: 'Hide details' }).click();
 	await page.getByRole('button', { name: 'View details' }).click();
-	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
+	await expect(page.getByText('Google Maps rating: 4.5 (42)')).toBeVisible();
 	expect(detailRequests).toBe(1);
 
 	await page.getByRole('checkbox', { name: 'Thai' }).click();
@@ -119,7 +126,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 		sort: 'rating'
 	});
 	await page.getByRole('button', { name: 'View details' }).click();
-	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
+	await expect(page.getByText('Google Maps rating: 4.5 (42)')).toBeVisible();
 	expect(detailRequests).toBe(2);
 });
 
