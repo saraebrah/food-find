@@ -10,6 +10,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	let searchRequests = 0;
 	let detailRequests = 0;
 	const searchBodies: unknown[] = [];
+	const detailBodies: unknown[] = [];
 
 	await page.route('**/api/places/search', async (route) => {
 		searchRequests += 1;
@@ -42,6 +43,7 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 
 	await page.route('**/api/places/details', async (route) => {
 		detailRequests += 1;
+		detailBodies.push(route.request().postDataJSON());
 		await route.fulfill({
 			contentType: 'application/json',
 			body: JSON.stringify({
@@ -67,6 +69,13 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	await chooseTorontoLocation(page);
 	await page.getByRole('button', { name: 'Search places' }).click();
 	await expect(page.getByRole('heading', { name: 'Browser Test Cafe' })).toBeVisible();
+	const directionsHref = await page
+		.getByRole('link', { name: 'Get directions' })
+		.getAttribute('href');
+	expect(directionsHref).not.toBeNull();
+	const directionsUrl = new URL(directionsHref!);
+	expect(directionsUrl.searchParams.get('origin')).toBe('43.6532,-79.3832');
+	expect(directionsUrl.searchParams.get('destination_place_id')).toBe('place-1');
 	expect(searchRequests).toBe(1);
 	expect(searchBodies[0]).toMatchObject({
 		filters: {
@@ -87,12 +96,25 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	expect(detailRequests).toBe(0);
 
 	await page.getByRole('button', { name: 'View details' }).click();
-	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
+	await expect(page.getByText('Google Maps rating: 4.5 (42)')).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Call +1 416-555-0100' })).toHaveAttribute(
+		'href',
+		'tel:+14165550100'
+	);
+	await expect(page.getByRole('link', { name: 'example.com', exact: true })).toHaveAttribute(
+		'href',
+		'https://example.com/'
+	);
+	await expect(page.getByRole('link', { name: 'Open example.com' })).toHaveAttribute(
+		'href',
+		'https://example.com/'
+	);
 	expect(detailRequests).toBe(1);
+	expect(detailBodies).toEqual([{ provider: 'google', provider_place_id: 'place-1' }]);
 
 	await page.getByRole('button', { name: 'Hide details' }).click();
 	await page.getByRole('button', { name: 'View details' }).click();
-	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
+	await expect(page.getByText('Google Maps rating: 4.5 (42)')).toBeVisible();
 	expect(detailRequests).toBe(1);
 
 	await page.getByRole('checkbox', { name: 'Thai' }).click();
@@ -119,8 +141,109 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 		sort: 'rating'
 	});
 	await page.getByRole('button', { name: 'View details' }).click();
-	await expect(page.getByText('Google Maps rating: 4.5/5 from 42 ratings')).toBeVisible();
+	await expect(page.getByText('Google Maps rating: 4.5 (42)')).toBeVisible();
 	expect(detailRequests).toBe(2);
+});
+
+test('resolves an address and carries its immutable location into search and directions', async ({
+	page
+}) => {
+	let autocompleteRequests = 0;
+	let resolutionRequests = 0;
+	let searchRequests = 0;
+	let autocompleteSessionToken = '';
+	let resolutionSessionToken = '';
+	let searchBody: unknown = null;
+
+	await page.route('**/api/locations/autocomplete', async (route) => {
+		autocompleteRequests += 1;
+		const body = route.request().postDataJSON();
+		autocompleteSessionToken = body.session_token;
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify([
+				{
+					provider: 'google',
+					provider_place_id: 'origin-place-1',
+					label: 'Toronto City Hall'
+				}
+			])
+		});
+	});
+	await page.route('**/api/locations/resolve', async (route) => {
+		resolutionRequests += 1;
+		const body = route.request().postDataJSON();
+		resolutionSessionToken = body.session_token;
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({
+				provider: 'google',
+				provider_place_id: 'origin-place-1',
+				label: 'Toronto City Hall, Toronto, ON, Canada',
+				latitude: 43.6534,
+				longitude: -79.3841
+			})
+		});
+	});
+	await page.route('**/api/places/search', async (route) => {
+		searchRequests += 1;
+		searchBody = route.request().postDataJSON();
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify([
+				{
+					provider: 'google',
+					provider_place_id: 'destination-place-1',
+					name: 'Address Journey Cafe',
+					category: 'Cafe',
+					category_code: 'cafe',
+					address: '1 Queen Street West, Toronto, ON',
+					coordinates: { latitude: 43.6525, longitude: -79.3817 },
+					business_status: 'operational',
+					open_now: null,
+					rating: null,
+					dine_in: null,
+					takeout: null,
+					distance_meters: 220,
+					match_reasons: []
+				}
+			])
+		});
+	});
+
+	await page.goto('/');
+	await page.getByRole('combobox', { name: 'Location' }).fill('Toronto City Hall');
+	await page.getByRole('button', { name: 'Toronto City Hall' }).click();
+	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveValue(
+		'Toronto City Hall, Toronto, ON, Canada'
+	);
+	expect(autocompleteRequests).toBe(1);
+	expect(resolutionRequests).toBe(1);
+	expect(autocompleteSessionToken).toBeTruthy();
+	expect(resolutionSessionToken).toBe(autocompleteSessionToken);
+	expect(searchRequests).toBe(0);
+
+	await page.getByRole('button', { name: 'Search places' }).click();
+	await expect(page.getByRole('heading', { name: 'Address Journey Cafe' })).toBeVisible();
+	expect(searchRequests).toBe(1);
+	expect(searchBody).toMatchObject({
+		location: {
+			provider: 'google',
+			provider_place_id: 'origin-place-1',
+			label: 'Toronto City Hall, Toronto, ON, Canada',
+			latitude: 43.6534,
+			longitude: -79.3841
+		}
+	});
+	const directionsHref = await page
+		.getByRole('link', { name: 'Get directions' })
+		.getAttribute('href');
+	const directionsUrl = new URL(directionsHref!);
+	expect(directionsUrl.searchParams.get('origin')).toBe('43.6534,-79.3841');
+	expect(directionsUrl.searchParams.get('origin_place_id')).toBe('origin-place-1');
+	expect(directionsUrl.searchParams.get('destination_place_id')).toBe(
+		'destination-place-1'
+	);
 });
 
 test('applies smart-search criteria once and keeps review edits local', async ({ page }) => {
@@ -264,13 +387,52 @@ test('does not retry failed interpretation or empty place search automatically',
 	expect(searchRequests).toBe(1);
 });
 
-test('uses the browser position only after an explicit current-location action', async ({
-	context,
+test('recovers from a failed place search only after another explicit submission', async ({
 	page
 }) => {
 	let searchRequests = 0;
 	await page.route('**/api/places/search', async (route) => {
 		searchRequests += 1;
+		if (searchRequests === 1) {
+			await route.fulfill({
+				status: 502,
+				contentType: 'application/json',
+				body: JSON.stringify({ detail: 'Place search is temporarily unavailable' })
+			});
+			return;
+		}
+		await route.fulfill({ contentType: 'application/json', body: '[]' });
+	});
+
+	await page.goto('/');
+	await chooseTorontoLocation(page);
+	await page.getByRole('button', { name: 'Search places' }).click();
+	await expect(
+		page.getByText('Search is temporarily unavailable. Select Search places to try again.')
+	).toBeVisible();
+	expect(searchRequests).toBe(1);
+	await expect(page.getByRole('button', { name: 'Search places' })).toBeEnabled();
+
+	await page.waitForTimeout(250);
+	expect(searchRequests).toBe(1);
+	await page.getByRole('button', { name: 'Search places' }).click();
+	await expect(
+		page.getByText(
+			'No places matched the current criteria. Try removing a filter, choosing a larger radius, or selecting another location.'
+		)
+	).toBeVisible();
+	expect(searchRequests).toBe(2);
+});
+
+test('uses the browser position only after an explicit current-location action', async ({
+	context,
+	page
+}) => {
+	let searchRequests = 0;
+	let searchBody: unknown = null;
+	await page.route('**/api/places/search', async (route) => {
+		searchRequests += 1;
+		searchBody = route.request().postDataJSON();
 		await route.fulfill({ contentType: 'application/json', body: '[]' });
 	});
 	await context.grantPermissions(['geolocation'], {
@@ -296,6 +458,16 @@ test('uses the browser position only after an explicit current-location action',
 		page.getByText('Current location selected. Select Search places when you are ready.')
 	).toBeVisible();
 	expect(searchRequests).toBe(0);
+
+	await page.getByRole('button', { name: 'Search places' }).click();
+	expect(searchRequests).toBe(1);
+	expect(searchBody).toMatchObject({
+		location: {
+			label: 'Current location',
+			latitude: 43.650123,
+			longitude: -79.390988
+		}
+	});
 });
 
 test('keeps the location-first workflow in vertical order on a mobile viewport', async ({

@@ -96,12 +96,25 @@ export function websiteHref(websiteUri: string | null): string | null {
 	}
 }
 
+export function websiteLabel(safeWebsiteHref: string): string {
+	const hostname = new URL(safeWebsiteHref).hostname;
+	return hostname.replace(/^www\./i, '');
+}
+
 type DirectionPlace = Pick<
 	Place,
 	'provider' | 'provider_place_id' | 'name' | 'address' | 'coordinates'
 >;
 
-export function directionsHref(place: DirectionPlace): string | null {
+type DirectionOrigin = Pick<
+	SelectedLocation,
+	'label' | 'latitude' | 'longitude' | 'provider' | 'provider_place_id'
+>;
+
+export function directionsHref(
+	place: DirectionPlace,
+	origin: DirectionOrigin
+): string | null {
 	const { latitude, longitude } = place.coordinates;
 	const hasCoordinates =
 		Number.isFinite(latitude) &&
@@ -113,10 +126,21 @@ export function directionsHref(place: DirectionPlace): string | null {
 	const destination = hasCoordinates
 		? `${latitude},${longitude}`
 		: place.address || place.name;
-	if (!destination) return null;
+	const hasOriginCoordinates =
+		Number.isFinite(origin.latitude) &&
+		Number.isFinite(origin.longitude) &&
+		origin.latitude >= -90 &&
+		origin.latitude <= 90 &&
+		origin.longitude >= -180 &&
+		origin.longitude <= 180;
+	if (!destination || !hasOriginCoordinates) return null;
 
 	const url = new URL('https://www.google.com/maps/dir/');
 	url.searchParams.set('api', '1');
+	url.searchParams.set('origin', `${origin.latitude},${origin.longitude}`);
+	if (origin.provider === 'google' && origin.provider_place_id) {
+		url.searchParams.set('origin_place_id', origin.provider_place_id);
+	}
 	url.searchParams.set('destination', destination);
 	if (place.provider === 'google' && place.provider_place_id !== '') {
 		url.searchParams.set('destination_place_id', place.provider_place_id);

@@ -1,6 +1,6 @@
 # Search-quality examples
 
-This file is FoodFind's growing set of human-reviewed search examples. It is not limited to the Phase 6 probe.
+This file is FoodFind's growing set of human-reviewed search examples. It is evaluation material only: it does not train Gemini or provide FoodFind with runtime evidence about a business.
 
 Review the relevant examples whenever changing any part of search behavior, including:
 
@@ -42,7 +42,7 @@ Radius: 2 km
 Business: M Chá Bar (Dundas & Bay) x ORYZA Sushi
 Address or Google Maps link: 120 Dundas St W, Toronto, ON M5G 1C3
 Expected: should not appear
-Reason: 
+Reason:
 Evidence, if available: does not appear on the menu from Google Maps
 
 ## Example 4
@@ -121,3 +121,25 @@ Address or Google Maps link: 252 Queen St W, Toronto, ON M5T 2X9
 Expected: should appear
 Reason: reviews mention crispy which is the important part of the search, it's not just sushi taco, it's crispy sushi taco
 Evidence, if available:
+
+## Example 11
+Search: steak
+Location: 318 King St E, Toronto
+Radius: 1 km
+
+Business: Domino's Pizza
+Address or Google Maps link: 67 Richmond St E, Toronto, ON M5C 0B7
+Expected: should not appear
+Reason:
+Evidence, if available:
+
+## Example 12
+Search: baklava
+Location: 318 King St E, Toronto
+Radius: 500 m
+
+Business: The Bhais Shawarma & Grill
+Address or Google Maps link: 222 The Esplanade, Toronto, ON M5A 4M8
+Expected: should not appear
+Reason:
+Evidence, if available: does not appear on the menu from Google Maps

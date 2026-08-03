@@ -54,6 +54,7 @@
 	});
 	let sort = $state<SearchSort>('provider_default');
 	let places = $state<Place[]>([]);
+	let resultsOrigin = $state<SelectedLocation | null>(null);
 	let selectedPlaceKey = $state<string | null>(null);
 	let locationStatus = $state('Choose a location to define the search area.');
 	let status = $state('Choose what to find, then select Search places.');
@@ -76,6 +77,7 @@
 
 	function clearResults() {
 		places = [];
+		resultsOrigin = null;
 		selectedPlaceKey = null;
 	}
 
@@ -345,6 +347,7 @@
 		controller = new AbortController();
 		try {
 			places = await searchPlaces(searchRequest, controller.signal);
+			resultsOrigin = { ...criteria.location };
 			status =
 				places.length > 0
 					? `Found ${places.length} ${places.length === 1 ? 'place' : 'places'}.`
@@ -541,7 +544,7 @@
 		<p class="search-status" role="status" aria-live="polite">{status}</p>
 	</section>
 
-	{#if places.length > 0}
+	{#if places.length > 0 && resultsOrigin}
 		<section id="results-section" aria-labelledby="results-heading">
 			<div class="results-heading">
 				<h2 id="results-heading">Places</h2>
@@ -551,6 +554,7 @@
 				{#each places as place (`${searchVersion}:${place.provider}:${place.provider_place_id}`)}
 					<PlaceCard
 						{place}
+						origin={resultsOrigin}
 						selected={selectedPlaceKey === placeKey(place)}
 						onSelect={() => handlePlaceSelect(placeKey(place))}
 					/>

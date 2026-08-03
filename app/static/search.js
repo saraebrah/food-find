@@ -145,7 +145,11 @@ function websiteHref(websiteUri) {
   }
 }
 
-function directionsHref(place) {
+function websiteLabel(safeWebsiteHref) {
+  return new URL(safeWebsiteHref).hostname.replace(/^www\./i, "");
+}
+
+function directionsHref(place, origin) {
   const latitude = place.coordinates?.latitude;
   const longitude = place.coordinates?.longitude;
   const hasCoordinates =
@@ -158,13 +162,28 @@ function directionsHref(place) {
   const destination = hasCoordinates
     ? `${latitude},${longitude}`
     : place.address || place.name;
+  const hasOriginCoordinates =
+    Number.isFinite(origin?.latitude) &&
+    Number.isFinite(origin?.longitude) &&
+    origin.latitude >= -90 &&
+    origin.latitude <= 90 &&
+    origin.longitude >= -180 &&
+    origin.longitude <= 180;
 
-  if (!destination) {
+  if (!destination || !hasOriginCoordinates) {
     return null;
   }
 
   const url = new URL("https://www.google.com/maps/dir/");
   url.searchParams.set("api", "1");
+  url.searchParams.set("origin", `${origin.latitude},${origin.longitude}`);
+  if (
+    origin.provider === "google" &&
+    typeof origin.provider_place_id === "string" &&
+    origin.provider_place_id !== ""
+  ) {
+    url.searchParams.set("origin_place_id", origin.provider_place_id);
+  }
   url.searchParams.set("destination", destination);
   if (
     place.provider === "google" &&
@@ -182,13 +201,13 @@ function renderPlaceDetails(container, details, businessStatus) {
 
   if (Number.isFinite(details.rating)) {
     const ratingCount = Number.isInteger(details.user_rating_count)
-      ? ` from ${details.user_rating_count.toLocaleString()} ratings`
+      ? ` (${details.user_rating_count.toLocaleString()})`
       : "";
     addText(
       container,
       "p",
       "place-rating",
-      `${providerName(details.provider)} rating: ${details.rating}/5${ratingCount}`,
+      `${providerName(details.provider)} rating: ${details.rating}${ratingCount}`,
     );
   } else {
     addText(container, "p", "place-missing", "Rating unavailable");
@@ -221,60 +240,126 @@ function renderPlaceDetails(container, details, businessStatus) {
 
   if (details.phone_number) {
     const callHref = phoneHref(details.phone_number);
-    const phoneActions = document.createElement("div");
-    phoneActions.className = "place-phone-actions";
+    const phoneRow = document.createElement("div");
+    phoneRow.className = "place-contact-row";
 
+    const phoneIcon = document.createElement("span");
+    phoneIcon.className = "place-contact-kind-icon";
+    phoneIcon.setAttribute("aria-hidden", "true");
+    phoneIcon.textContent = "☎";
+
+    const phoneNumber = document.createElement("span");
+    phoneNumber.className = "place-phone-number";
+    phoneNumber.textContent = details.phone_number;
+
+    const phoneActions = document.createElement("div");
+    phoneActions.className = "place-contact-actions";
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "place-contact-action";
+    copyButton.textContent = "Copy";
+    copyButton.setAttribute("aria-label", `Copy ${details.phone_number}`);
+    copyButton.title = "Copy phone number";
+
+    const copyStatus = document.createElement("p");
+    copyStatus.className = "place-copy-status";
+    copyStatus.setAttribute("role", "status");
+    copyStatus.setAttribute("aria-live", "polite");
+    copyStatus.hidden = true;
+    copyButton.addEventListener("click", async () => {
+      try {
+        if (!navigator.clipboard?.writeText) {
+          throw new Error("Clipboard access is unavailable");
+        }
+        await navigator.clipboard.writeText(details.phone_number);
+        copyStatus.textContent = "Phone number copied";
+        copyStatus.hidden = false;
+      } catch {
+        copyStatus.textContent =
+          "Could not copy automatically. Select the number to copy it.";
+        copyStatus.hidden = false;
+      }
+    });
     if (callHref !== null) {
       const callLink = document.createElement("a");
-      callLink.className = "place-action place-call-action";
+      const callLabel = businessStatus == null ? "Call to confirm" : "Call";
+      callLink.className = "place-contact-action place-call-action";
       callLink.href = callHref;
-      callLink.textContent = businessStatus == null ? "Call to confirm" : "Call";
+      callLink.textContent = "Call";
+      callLink.setAttribute("aria-label", `${callLabel} ${details.phone_number}`);
+      callLink.title = callLabel;
       phoneActions.append(callLink);
     }
 
-    const phoneNumber = document.createElement("p");
-    phoneNumber.id = `${container.id}-phone-number`;
-    phoneNumber.className = "place-phone";
-    phoneNumber.textContent = `Phone number: ${details.phone_number}`;
-    phoneNumber.hidden = true;
+    phoneActions.append(copyButton);
 
-    const showNumberButton = document.createElement("button");
-    showNumberButton.type = "button";
-    showNumberButton.className = "place-show-number-button";
-    showNumberButton.textContent = "Show number";
-    showNumberButton.setAttribute("aria-controls", phoneNumber.id);
-    showNumberButton.setAttribute("aria-expanded", "false");
-    showNumberButton.addEventListener("click", () => {
-      phoneNumber.hidden = !phoneNumber.hidden;
-      if (phoneNumber.hidden) {
-        showNumberButton.textContent = "Show number";
-        showNumberButton.setAttribute("aria-expanded", "false");
-      } else {
-        showNumberButton.textContent = "Hide number";
-        showNumberButton.setAttribute("aria-expanded", "true");
-      }
-    });
-
-    phoneActions.append(showNumberButton);
-    container.append(phoneActions, phoneNumber);
+    phoneRow.append(phoneIcon, phoneNumber, phoneActions);
+    container.append(phoneRow, copyStatus);
   } else {
     addText(container, "p", "place-missing", "Phone unavailable");
   }
 
   const safeWebsiteHref = websiteHref(details.website_uri);
   if (safeWebsiteHref !== null) {
-    const websiteRow = document.createElement("p");
-    websiteRow.className = "place-website";
-    websiteRow.append("Website: ");
+    const safeWebsiteLabel = websiteLabel(safeWebsiteHref);
+    const websiteRow = document.createElement("div");
+    websiteRow.className = "place-contact-row place-website-row";
+
+    const websiteIcon = document.createElement("span");
+    websiteIcon.className = "place-contact-kind-icon";
+    websiteIcon.setAttribute("aria-hidden", "true");
+    websiteIcon.textContent = "◎";
 
     const websiteLink = document.createElement("a");
     websiteLink.className = "place-website-link";
     websiteLink.href = safeWebsiteHref;
     websiteLink.target = "_blank";
     websiteLink.rel = "noopener noreferrer";
-    websiteLink.textContent = "Visit website";
-    websiteRow.append(websiteLink);
-    container.append(websiteRow);
+    websiteLink.textContent = safeWebsiteLabel;
+
+    const websiteActions = document.createElement("div");
+    websiteActions.className = "place-contact-actions";
+
+    const openWebsiteLink = document.createElement("a");
+    openWebsiteLink.className = "place-contact-action";
+    openWebsiteLink.href = safeWebsiteHref;
+    openWebsiteLink.target = "_blank";
+    openWebsiteLink.rel = "noopener noreferrer";
+    openWebsiteLink.textContent = "Open";
+    openWebsiteLink.setAttribute("aria-label", `Open ${safeWebsiteLabel}`);
+    openWebsiteLink.title = "Open website";
+
+    const copyWebsiteButton = document.createElement("button");
+    copyWebsiteButton.type = "button";
+    copyWebsiteButton.className = "place-contact-action";
+    copyWebsiteButton.textContent = "Copy";
+    copyWebsiteButton.setAttribute("aria-label", `Copy ${safeWebsiteLabel}`);
+    copyWebsiteButton.title = "Copy website link";
+
+    const websiteCopyStatus = document.createElement("p");
+    websiteCopyStatus.className = "place-copy-status";
+    websiteCopyStatus.setAttribute("role", "status");
+    websiteCopyStatus.setAttribute("aria-live", "polite");
+    websiteCopyStatus.hidden = true;
+    copyWebsiteButton.addEventListener("click", async () => {
+      try {
+        if (!navigator.clipboard?.writeText) {
+          throw new Error("Clipboard access is unavailable");
+        }
+        await navigator.clipboard.writeText(safeWebsiteHref);
+        websiteCopyStatus.textContent = "Website link copied";
+        websiteCopyStatus.hidden = false;
+      } catch {
+        websiteCopyStatus.textContent =
+          "Could not copy automatically. Open or select the website link instead.";
+        websiteCopyStatus.hidden = false;
+      }
+    });
+
+    websiteActions.append(openWebsiteLink, copyWebsiteButton);
+    websiteRow.append(websiteIcon, websiteLink, websiteActions);
+    container.append(websiteRow, websiteCopyStatus);
   } else {
     addText(container, "p", "place-missing", "Website unavailable");
   }
@@ -382,8 +467,8 @@ function addDetailsControl(item, place, resultIndex) {
   item.append(button, detailsContainer);
 }
 
-function addDirectionsAction(item, place) {
-  const href = directionsHref(place);
+function addDirectionsAction(item, place, origin) {
+  const href = directionsHref(place, origin);
   if (href === null) {
     return;
   }
@@ -397,7 +482,7 @@ function addDirectionsAction(item, place) {
   item.append(directionsLink);
 }
 
-function renderPlaces(places) {
+function renderPlaces(places, origin) {
   clearResults();
 
   if (places.length === 0) {
@@ -437,7 +522,7 @@ function renderPlaces(places) {
     }
 
     addText(item, "p", "place-source", `Source: ${providerName(place.provider)}`);
-    addDirectionsAction(item, place);
+    addDirectionsAction(item, place, origin);
     addDetailsControl(item, place, resultIndex);
     placeResults.append(item);
   }
@@ -638,7 +723,7 @@ searchButton.addEventListener("click", async () => {
     }
 
     const places = await response.json();
-    renderPlaces(places);
+    renderPlaces(places, location);
     searchStatus.textContent =
       places.length === 0 ? "No places found." : "Search complete.";
   } catch (error) {

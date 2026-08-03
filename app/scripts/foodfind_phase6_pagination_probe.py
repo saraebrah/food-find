@@ -1,4 +1,4 @@
-"""One opt-in, Pro-only pagination probe for FoodFind Phase 6."""
+"""One opt-in, historical Pro-only pagination probe for FoodFind."""
 
 import argparse
 import asyncio
@@ -125,7 +125,7 @@ def _display_name(place: Mapping[str, Any]) -> str:
 
 def render_pages(pages: list[dict[str, Any]]) -> str:
     lines = [
-        "FoodFind Phase 6 — Pro pagination probe",
+        "FoodFind historical Pro pagination probe",
         f"Query: {PAGINATION_QUERY}",
         "Location: 318 King St E, Toronto",
         f"Radius: {PAGINATION_RADIUS_METERS // 1_000} km",

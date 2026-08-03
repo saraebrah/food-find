@@ -437,6 +437,43 @@ async def test_text_search_removes_known_non_food_business_types() -> None:
 
 
 @pytest.mark.anyio
+async def test_text_search_treats_blank_optional_text_as_missing() -> None:
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "places": [
+                    {
+                        "id": "restaurant",
+                        "displayName": {"text": "Example Restaurant"},
+                        "primaryType": "restaurant",
+                        "types": ["restaurant", "food"],
+                        "primaryTypeDisplayName": {"text": "   "},
+                        "formattedAddress": "  \t ",
+                        "location": {"latitude": 43.65, "longitude": -79.38},
+                    }
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handle_request)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
+        places = await gateway.search_nearby(
+            latitude=43.6453,
+            longitude=-79.3806,
+            radius_meters=1000,
+            filters=SearchFilters(),
+            sort=SearchSort.PROVIDER_DEFAULT,
+        )
+
+    assert places[0].category is None
+    assert places[0].category_code == "restaurant"
+    assert places[0].address is None
+
+
+@pytest.mark.anyio
 async def test_rating_sort_requests_rating_without_opening_hours() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         field_mask = request.headers["X-Goog-FieldMask"]
@@ -632,6 +669,47 @@ async def test_get_details_preserves_missing_optional_fields() -> None:
         open_now=None,
         opening_hours=("Monday: Closed",),
         phone_number="+1 416-555-0101",
+        website_uri=None,
+    )
+
+
+@pytest.mark.anyio
+async def test_get_details_normalizes_blank_optional_values() -> None:
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "id": "google-place-3",
+                "currentOpeningHours": {
+                    "openNow": False,
+                    "weekdayDescriptions": ["", "   "],
+                },
+                "regularOpeningHours": {
+                    "weekdayDescriptions": [
+                        "  Monday: 9:00 AM – 9:00 PM  ",
+                        "\t",
+                    ]
+                },
+                "nationalPhoneNumber": "   ",
+                "internationalPhoneNumber": "  +1 416-555-0102  ",
+                "websiteUri": "\t",
+            },
+        )
+
+    transport = httpx.MockTransport(handle_request)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
+        details = await gateway.get_details(provider_place_id="google-place-3")
+
+    assert details == PlaceDetails(
+        provider="google",
+        provider_place_id="google-place-3",
+        rating=None,
+        user_rating_count=None,
+        open_now=False,
+        opening_hours=("Monday: 9:00 AM – 9:00 PM",),
+        phone_number="+1 416-555-0102",
         website_uri=None,
     )
 
