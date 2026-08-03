@@ -189,6 +189,25 @@ GOOGLE_COMMON_FOOD_QUERY_TEXT = {
 }
 
 
+def _optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _weekday_descriptions(
+    opening_hours: GoogleOpeningHours | None,
+) -> tuple[str, ...]:
+    if opening_hours is None:
+        return ()
+    return tuple(
+        description
+        for value in opening_hours.weekday_descriptions
+        if (description := _optional_text(value)) is not None
+    )
+
+
 class GooglePlacesGateway(PlaceProvider):
     def __init__(self, *, api_key: str, http_client: httpx.AsyncClient) -> None:
         if not api_key.strip():
@@ -412,12 +431,8 @@ class GooglePlacesGateway(PlaceProvider):
 
         current_hours = google_details.current_opening_hours
         regular_hours = google_details.regular_opening_hours
-        opening_hours = (
-            current_hours.weekday_descriptions
-            if current_hours and current_hours.weekday_descriptions
-            else regular_hours.weekday_descriptions
-            if regular_hours
-            else []
+        opening_hours = _weekday_descriptions(current_hours) or _weekday_descriptions(
+            regular_hours
         )
         open_now = (
             current_hours.open_now
@@ -433,12 +448,12 @@ class GooglePlacesGateway(PlaceProvider):
             rating=google_details.rating,
             user_rating_count=google_details.user_rating_count,
             open_now=open_now,
-            opening_hours=tuple(opening_hours),
+            opening_hours=opening_hours,
             phone_number=(
-                google_details.national_phone_number
-                or google_details.international_phone_number
+                _optional_text(google_details.national_phone_number)
+                or _optional_text(google_details.international_phone_number)
             ),
-            website_uri=google_details.website_uri,
+            website_uri=_optional_text(google_details.website_uri),
         )
 
     @classmethod
@@ -453,12 +468,12 @@ class GooglePlacesGateway(PlaceProvider):
             provider_place_id=place.id,
             name=place.display_name.text,
             category=(
-                place.primary_type_display_name.text
+                _optional_text(place.primary_type_display_name.text)
                 if place.primary_type_display_name
                 else None
             ),
-            category_code=place.primary_type,
-            address=place.formatted_address,
+            category_code=_optional_text(place.primary_type),
+            address=_optional_text(place.formatted_address),
             coordinates=Coordinates(
                 latitude=place.location.latitude,
                 longitude=place.location.longitude,

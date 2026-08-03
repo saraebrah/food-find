@@ -1,4 +1,4 @@
-"""One opt-in Google evidence probe for FoodFind Phase 6 Step 1.
+"""One opt-in historical Google food-evidence probe.
 
 This is a development utility, not part of production search. It makes one
 fixed Text Search request and does not persist the Google response.
@@ -181,7 +181,7 @@ def render_probe_response(
     places = _list(payload.get("places"))
     contexts = _list(payload.get("contextualContents"))
     lines = [
-        "FoodFind Phase 6 Step 1 — Google evidence probe",
+        "FoodFind historical Google food-evidence probe",
         f"Query: {query}",
         "Location: 318 King St E, Toronto",
         f"Radius: {PROBE_RADIUS_METERS // 1_000} km",
@@ -307,7 +307,7 @@ async def run_live_remaining_probes() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run the single FoodFind Phase 6 Google evidence probe."
+        description="Run the historical FoodFind Google food-evidence probe."
     )
     confirmation = parser.add_mutually_exclusive_group()
     confirmation.add_argument(

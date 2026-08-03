@@ -154,6 +154,30 @@ describe('PlaceCard', () => {
 		expect(getPlaceDetails).toHaveBeenCalledTimes(1);
 	});
 
+	it('labels every missing detail field without rendering unusable actions', async () => {
+		vi.mocked(getPlaceDetails).mockResolvedValueOnce({
+			provider: 'google',
+			provider_place_id: 'google-place-1',
+			rating: null,
+			user_rating_count: null,
+			open_now: null,
+			opening_hours: [],
+			phone_number: null,
+			website_uri: null
+		});
+		render(PlaceCard, { place, origin });
+
+		await page.getByRole('button', { name: 'View details' }).click();
+
+		await expect.element(page.getByText('Rating unavailable')).toBeVisible();
+		await expect.element(page.getByText('Current open status unavailable')).toBeVisible();
+		await expect.element(page.getByText('Hours unavailable')).toBeVisible();
+		await expect.element(page.getByText('Phone unavailable')).toBeVisible();
+		await expect.element(page.getByText('Website unavailable')).toBeVisible();
+		await expect.element(page.getByRole('link', { name: /^Call/ })).not.toBeInTheDocument();
+		await expect.element(page.getByRole('link', { name: /^Open / })).not.toBeInTheDocument();
+	});
+
 	it('shows a copyable phone number with separate copy and call actions', async () => {
 		render(PlaceCard, { place, origin });
 

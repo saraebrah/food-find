@@ -41,7 +41,7 @@ python -m app.scripts.google_places_smoke
 
 Do not add this command to automated tests.
 
-The completed Phase 6 evidence probe remains available as an explicitly
+The completed historical food-evidence probe remains available as an explicitly
 confirmed development utility:
 
 ```sh

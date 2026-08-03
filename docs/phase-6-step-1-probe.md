@@ -1,4 +1,4 @@
-# Phase 6 Step 1 — Google evidence probe
+# Google food-evidence probe
 
 ## Scope
 
@@ -66,8 +66,8 @@ If review evidence is displayed in FoodFind, the interface must:
 
 ## Step 1 conclusion
 
-The probe was useful as research: it confirmed that Toronto receives query-related review justifications and exposed their limitations. It did not demonstrate consistent enough evidence to build Iteration 3 as currently planned.
+The probe was useful as research: it confirmed that Toronto receives query-related review justifications and exposed their limitations. It did not demonstrate evidence reliable enough for production food matching.
 
 Do not add review-supported production ranking yet. The evidence can be stale, partial, or generic. Pagination recovered one missing chocolate-cake business but not the other, showing that candidate coverage and evidence accuracy need separate solutions.
 
-On-demand pagination is worth considering before review-supported ranking because it provides more candidates and supports the intended infinite-scroll experience. It should not be presented as a complete search-quality solution. Phase 6 remains paused after Step 1 while the next approach is reconsidered. Step 2 has not started.
+The evidence-supported search plan ended after this probe. Its remaining proposed steps were dropped because Google did not expose sufficiently complete, current menu or review evidence, and the available candidate set was also incomplete. Reconsider food-evidence work only when a stronger, current source is identified. On-demand pagination remains a separate future enhancement for candidate coverage and must not be presented as a search-quality solution by itself.

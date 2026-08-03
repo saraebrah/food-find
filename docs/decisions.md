@@ -119,6 +119,23 @@ Category labels and codes are still provider-supplied at this stage. A shared Fo
 - Immutable domain objects make one normalized provider response a stable snapshot for later application and display steps.
 - Delaying a shared category taxonomy avoids inventing filtering behavior before that feature is built.
 
+## Provider failure boundary
+
+- **Date:** 2026-07-13
+- **Status:** Current approach
+
+### Decision
+
+Google adapters translate transport errors, unsuccessful provider responses, and invalid provider response data into provider-neutral `PlaceProviderError` or `LocationProviderError` exceptions. FastAPI routes convert those exceptions into safe HTTP `502` responses with `Cache-Control: no-store`.
+
+The browser distinguishes invalid input from temporary provider or network failure, clears stale results, and restores disabled controls after each request. This uses direct status updates and one result-clearing helper rather than a separate frontend state-management system.
+
+### Rationale
+
+- Core routes and future provider adapters do not need Google-specific error handling.
+- Provider response details are not exposed to the browser.
+- The current UI stays simple while giving each operation a predictable recovery path.
+
 ## Nearby summary fields and on-demand details
 
 - **Date:** 2026-07-15
@@ -192,32 +209,6 @@ The page will call this endpoint only after a deliberate user action in the next
 - Dependency injection lets automated tests substitute a fake provider without loading the API key or contacting Google.
 - Keeping the coordinates and radius in one application use case prevents different entry points from using different fixed search state.
 
-## Normalized selected location and generalized search
-
-- **Date:** 2026-07-12
-- **Status:** Current approach
-
-### Decision
-
-Every location input method will produce a FoodFind-owned `SelectedLocation` containing:
-
-- a visible label
-- coordinates
-- optional provider name and provider place ID
-
-`SearchPlaces` receives this object inside `SearchCriteria` and passes its coordinates to the existing `PlaceProvider`. Phase 3 Step 2 replaces the earlier fixed restaurant-and-café constraint with the normalized editable place-type filter documented below.
-
-For Step 1A, the browser accepts decimal coordinates and sends the normalized label, latitude, and longitude to `POST /api/places/search`. The API validates finite values and coordinate ranges with a Pydantic boundary model before constructing the domain object.
-
-The previous `SearchFixedTorontoPlaces` class remains as a compatibility wrapper around `SearchPlaces`; the active web route no longer depends on fixed Toronto constants.
-
-### Rationale
-
-- Address suggestions, coordinates, map clicks, and current location can all converge on one domain format.
-- The search use case does not need to know how the location was obtained.
-- Backend validation remains authoritative even though the browser also provides immediate input guidance.
-- Snapshotting and disabling the field during a request prevents lifecycle inconsistencies between the searched coordinates and visible input.
-
 ## Phase 1 browser interface
 
 - **Date:** 2026-07-11
@@ -276,6 +267,32 @@ The previous Jinja template, CSS, and JavaScript remain temporarily as a fallbac
 ### Known transition limitation
 
 As of 2026-07-18, `npm audit` reports one low-severity advisory in the transitive `cookie` package used by the current SvelteKit `2.70.0` toolchain. There are no moderate, high, or critical findings. npm's displayed automatic fix would replace current packages with incompatible pre-release versions, so FoodFind will not use `npm audit fix --force`; the dependency should be updated normally when SvelteKit publishes a compatible resolution. The current frontend is statically built and does not use SvelteKit server cookies.
+
+## Normalized selected location and generalized search
+
+- **Date:** 2026-07-12
+- **Status:** Current approach
+
+### Decision
+
+Every location input method will produce a FoodFind-owned `SelectedLocation` containing:
+
+- a visible label
+- coordinates
+- optional provider name and provider place ID
+
+`SearchPlaces` receives this object inside `SearchCriteria` and passes its coordinates to the existing `PlaceProvider`. Phase 3 Step 2 replaces the earlier fixed restaurant-and-café constraint with the normalized editable place-type filter documented below.
+
+For Step 1A, the browser accepts decimal coordinates and sends the normalized label, latitude, and longitude to `POST /api/places/search`. The API validates finite values and coordinate ranges with a Pydantic boundary model before constructing the domain object.
+
+The previous `SearchFixedTorontoPlaces` class remains as a compatibility wrapper around `SearchPlaces`; the active web route no longer depends on fixed Toronto constants.
+
+### Rationale
+
+- Address suggestions, coordinates, map clicks, and current location can all converge on one domain format.
+- The search use case does not need to know how the location was obtained.
+- Backend validation remains authoritative even though the browser also provides immediate input guidance.
+- Snapshotting and disabling the field during a request prevents lifecycle inconsistencies between the searched coordinates and visible input.
 
 ## Google location autocomplete lifecycle
 
@@ -376,6 +393,26 @@ Google's current Nearby Search type table does not contain a generic `food_truck
 - Restaurant, café, bar, and bakery are current request-filterable Table A values: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
 - Nearby Search billing is controlled by the response field mask; the existing summary mask remains Pro: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
 
+## Remove place type from editable search filters
+
+- **Date:** 2026-07-26
+- **Status:** Current
+
+### Decision
+
+Place type is removed from the browser controls, API filter model, domain `SearchFilters`, interpretation capabilities, and Gemini structured output. Location is the only input required before **Search places**; cuisine, common food, availability, rating, service options, smart search, and sorting remain optional.
+
+FoodFind still searches for food businesses. The Google adapter uses the requested cuisine, common food, or free-form dish as the main query when one is present; otherwise it uses a broad fallback covering restaurants, cafés, bars, and bakeries. It defensively removes results whose known Google types fall outside that scope. It does not send `includedType` or expose provider categories as a user filter. Results with missing type data remain visible as unconfirmed.
+
+Requests that still submit the removed `place_types` property receive HTTP `422` rather than having an ignored filter appear active.
+
+### Rationale
+
+- Choosing a broad business type did not provide useful control compared with cuisine, common-food, and smart-search criteria.
+- Removing the control makes Location the one clear prerequisite for searching.
+- Removing the field end to end prevents smart search from changing an invisible filter.
+- Keeping the food-business scope inside the provider adapter preserves FoodFind's purpose without adding user work.
+
 ## Pro cuisine, common-food, and distance filters
 
 - **Date:** 2026-07-18
@@ -413,75 +450,45 @@ None of these Pro request parameters adds response fields. The default nearby-se
 - Google documents `POPULARITY` as the omitted/default ranking and `DISTANCE` as ascending distance: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
 - Billing is controlled by requested response fields; the existing summary mask remains within Nearby Search Pro: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
 
-## Provider failure boundary
+## Expanded cuisine allowlist
 
-- **Date:** 2026-07-13
-- **Status:** Current approach
-
-### Decision
-
-Google adapters translate transport errors, unsuccessful provider responses, and invalid provider response data into provider-neutral `PlaceProviderError` or `LocationProviderError` exceptions. FastAPI routes convert those exceptions into safe HTTP `502` responses with `Cache-Control: no-store`.
-
-The browser distinguishes invalid input from temporary provider or network failure, clears stale results, and restores disabled controls after each request. This uses direct status updates and one result-clearing helper rather than a separate frontend state-management system.
-
-### Rationale
-
-- Core routes and future provider adapters do not need Google-specific error handling.
-- Provider response details are not exposed to the browser.
-- The current UI stays simple while giving each operation a predictable recovery path.
-
-## Filters and smart search before the map
-
-- **Date:** 2026-07-15
-- **Status:** Current approach
+- **Date:** 2026-07-26
+- **Status:** Current
 
 ### Decision
 
-After completing basic place discovery, FoodFind will build in this order:
+Mexican, Japanese, Korean, Vietnamese, and Mediterranean join the existing Chinese, Italian, Persian, Thai, and Indian cuisine options. Each is a FoodFind-owned enum value represented as natural-language relevance text in Google Text Search. Google currently lists corresponding restaurant types in its request-filterable Food and Drink taxonomy.
 
-1. Manual filters and sorting
-2. Smart search that translates requests into the manual filter state
-3. The map experience and device current location together
-4. First-version cleanup
-
-Filters will be implemented one at a time. Before adding each one, confirm whether Google supports it, which billing tier its fields require, how missing values behave, and whether it can be applied by Google or only to the returned result set.
-
-Phase 3 filter work is grouped by the highest Nearby Search billing tier required:
-
-1. **Pro:** place type, cuisine, supported common food, and distance sorting
-2. **Enterprise:** open now, minimum rating, and rating sorting
-3. **Enterprise + Atmosphere:** dine-in and takeout
-
-FoodFind pauses for review after each group. Completing a group does not automatically authorize starting the next billing tier.
-
-Cuisine and supported common-food choices can be represented by Google request-filterable place types. Distance ordering is available through Nearby Search's `DISTANCE` rank preference. These request parameters do not require adding response fields, so the existing Pro field mask remains unchanged.
-
-Nearby Search does not provide an `openNow` request parameter. Open now therefore needs `currentOpeningHours`; minimum-rating filtering and rating ordering need `rating`. Each completed Enterprise filter requests only its required response field when active. Dine-in and takeout require Enterprise + Atmosphere response fields and remain in the final group.
-
-The Enterprise implementation must use one conditional Nearby Search request rather than fetching Place Details separately for every returned result. Missing-data behavior must be agreed and documented before each Enterprise or Enterprise + Atmosphere filter is implemented.
-
-### Billing-group references
-
-- Nearby Search supports type restrictions and `DISTANCE` or `POPULARITY` rank preference as request parameters: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
-- Google lists request-filterable cuisine and food categories in its current Table A: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
-- Google classifies `currentOpeningHours` and `rating` as Nearby Search Enterprise fields and `dineIn` and `takeout` as Enterprise + Atmosphere fields: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
-
-Current location remains combined with the map phase. Delaying the map therefore also delays device-location permission, while autocomplete, addresses, and coordinate entry continue to provide working manual location selection.
+Cuisine options remain a reviewed allowlist rather than being downloaded dynamically from Google. Adding one requires coordinated updates to the Python domain enum and provider adapter plus the TypeScript type and visible option list; API validation, Gemini capabilities, field limits, and the search lifecycle derive from those definitions without separate use-case changes.
 
 ### Rationale
 
-- Filters determine whether FoodFind can return meaningfully relevant choices and establish the search state that later features need.
-- Smart search can reuse the proven filter state instead of creating a parallel search implementation.
-- The existing list already provides distance, address, details, calls, websites, and Google Maps directions, so it remains usable without an embedded map.
-- Building the map after the search model is stable reduces simultaneous work on provider behavior, client state, and marker/list synchronization.
-- Combining map selection and current location completes the spatial experience in one phase while keeping every location source normalized through the same domain model.
+- A reviewed list keeps the interface manageable and prevents raw provider taxonomy from becoming the product model.
+- Explicit cross-layer definitions provide compile-time and boundary validation in both Python and TypeScript.
+- The current approach is suitable for a small list. A server-provided capabilities endpoint would be more appropriate if the option catalog becomes large or changes frequently.
 
-### Tradeoffs
+## Expanded common-food allowlist
 
-- Users will not initially have embedded spatial context or map-based location selection.
-- Device current location arrives later because it is grouped with the map.
-- Filter implementation may change provider fields and billing tiers before the map work begins.
-- Filters and smart search will make the browser state richer, so the project must decide whether to introduce SvelteKit before extending the temporary JavaScript interface substantially.
+- **Date:** 2026-07-26
+- **Status:** Current
+
+### Decision
+
+Shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, and pasta join the existing pizza, burgers, steak, ramen, and kebab options. The interface uses the standard spelling **Shawarma**.
+
+Google's current Food and Drink taxonomy contains direct or closely corresponding types for shawarma, ice cream, dessert, sushi, tacos, salad, and soup. Sweets has related confectionery, candy-store, and dessert types. Generic drinks and pasta have no exact Google place type. All Common food options are therefore sent consistently as natural-language Text Search relevance terms rather than structured provider type filters.
+
+Selecting any Common food option changes relevance only. It does not verify current menu availability, and FoodFind continues to show the agreed check-the-menu-or-call warning.
+
+### Rationale
+
+- One relevance-only behavior keeps exact provider categories and ordinary food terms from appearing more reliable than they are.
+- The expanded list supports common discovery language without adding response fields or another Google request.
+- Documenting the missing exact types prevents Pasta, Drinks, or Sweets from being mistaken for provider-verified categories.
+
+### Current provider reference
+
+- Google's Food and Drink taxonomy lists the supported structured types and does not currently include generic pasta or drinks types: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
 
 ## Open-now filter
 
@@ -572,6 +579,59 @@ The filters operate on the maximum 20 candidates Google returns. The visible res
 - Google classifies `places.dineIn` and `places.takeout` as Nearby Search Enterprise + Atmosphere fields: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
 - Google's Nearby Search request schema has no dine-in or takeout filter parameter and returns at most 20 candidates: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
 
+## Filters and smart search before the map
+
+- **Date:** 2026-07-15
+- **Status:** Current approach
+
+### Decision
+
+After completing basic place discovery, FoodFind will build in this order:
+
+1. Manual filters and sorting
+2. Smart search that translates requests into the manual filter state
+3. The map experience and device current location together
+4. First-version cleanup
+
+Filters will be implemented one at a time. Before adding each one, confirm whether Google supports it, which billing tier its fields require, how missing values behave, and whether it can be applied by Google or only to the returned result set.
+
+Phase 3 filter work is grouped by the highest Nearby Search billing tier required:
+
+1. **Pro:** place type, cuisine, supported common food, and distance sorting
+2. **Enterprise:** open now, minimum rating, and rating sorting
+3. **Enterprise + Atmosphere:** dine-in and takeout
+
+FoodFind pauses for review after each group. Completing a group does not automatically authorize starting the next billing tier.
+
+Cuisine and supported common-food choices can be represented by Google request-filterable place types. Distance ordering is available through Nearby Search's `DISTANCE` rank preference. These request parameters do not require adding response fields, so the existing Pro field mask remains unchanged.
+
+Nearby Search does not provide an `openNow` request parameter. Open now therefore needs `currentOpeningHours`; minimum-rating filtering and rating ordering need `rating`. Each completed Enterprise filter requests only its required response field when active. Dine-in and takeout require Enterprise + Atmosphere response fields and remain in the final group.
+
+The Enterprise implementation must use one conditional Nearby Search request rather than fetching Place Details separately for every returned result. Missing-data behavior must be agreed and documented before each Enterprise or Enterprise + Atmosphere filter is implemented.
+
+### Billing-group references
+
+- Nearby Search supports type restrictions and `DISTANCE` or `POPULARITY` rank preference as request parameters: [Nearby Search request reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places/searchNearby).
+- Google lists request-filterable cuisine and food categories in its current Table A: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
+- Google classifies `currentOpeningHours` and `rating` as Nearby Search Enterprise fields and `dineIn` and `takeout` as Enterprise + Atmosphere fields: [Nearby Search field masks](https://developers.google.com/maps/documentation/places/web-service/nearby-search#fieldmask).
+
+Current location remains combined with the map phase. Delaying the map therefore also delays device-location permission, while autocomplete, addresses, and coordinate entry continue to provide working manual location selection.
+
+### Rationale
+
+- Filters determine whether FoodFind can return meaningfully relevant choices and establish the search state that later features need.
+- Smart search can reuse the proven filter state instead of creating a parallel search implementation.
+- The existing list already provides distance, address, details, calls, websites, and Google Maps directions, so it remains usable without an embedded map.
+- Building the map after the search model is stable reduces simultaneous work on provider behavior, client state, and marker/list synchronization.
+- Combining map selection and current location completes the spatial experience in one phase while keeping every location source normalized through the same domain model.
+
+### Tradeoffs
+
+- Users will not initially have embedded spatial context or map-based location selection.
+- Device current location arrives later because it is grouped with the map.
+- Filter implementation may change provider fields and billing tiers before the map work begins.
+- Filters and smart search will make the browser state richer, so the project must decide whether to introduce SvelteKit before extending the temporary JavaScript interface substantially.
+
 ## Text Search-only food discovery
 
 - **Date:** 2026-07-21
@@ -630,33 +690,33 @@ Location and radius remain separate request data. Known non-food results are sti
 - The provider-specific wording remains isolated in the Google adapter.
 - Text relevance is still not proof that a requested dish is currently available.
 
-## Fetch list-wide evidence in the search request
+## Evaluate list-wide Google review evidence before adoption
 
 - **Date:** 2026-07-29
-- **Status:** Accepted for Phase 6 planning
+- **Status:** Closed without production adoption — 2026-07-30
 
 ### Decision
 
-When FoodFind needs evidence to rank the entire result list, it will request that evidence in one search-level provider call when the provider supports it. For Google review evidence, one Enterprise + Atmosphere Text Search replaces the ordinary Pro Text Search; FoodFind must not make a Pro search and then request Enterprise + Atmosphere Place Details for every returned candidate.
+FoodFind evaluated Google review evidence with one controlled, list-level Enterprise + Atmosphere Text Search instead of making a Pro search followed by Place Details requests for every candidate.
 
-Place Details remains on demand for information needed only after the user opens one result. Missing review or contextual evidence is unknown, not evidence that a food is unavailable. Positive evidence may support ranking and explanation but must be labelled as user-provided and potentially stale rather than verified menu availability.
+The evaluation did not justify production implementation. Google did not expose sufficiently complete, current menu or review evidence, and some expected businesses were absent from the candidate set. FoodFind therefore did not add review-supported ranking, a supporting evidence provider, or a provider-independent food-evidence layer. Reconsider this work only when a stronger, current evidence source is identified.
 
-Before implementation, Phase 6 begins with one controlled Toronto probe to confirm availability, usefulness, attribution, and billing. Automated tests remain mocked, and live development usage must be explicitly enabled and capped before the behavior is enabled.
+Place Details remains on demand for information needed only after the user opens one result. Missing evidence is unknown, not proof that a food is unavailable.
 
-The human-reviewed query and business cases in `docs/examples.md` are FoodFind's ongoing search-quality evaluation set, not only inputs for the Phase 6 probe. Review relevant cases whenever changing request interpretation, provider queries, evidence use, matching, filtering, ranking, or result explanations. They guide general search behavior but must never become named-business conditions in production code. Expected results reflect the evidence available when each case was added, and evidence should be rechecked when it may be stale or unclear.
+The human-reviewed cases in `docs/examples.md` remain evaluation material. They do not train Gemini, provide runtime business evidence, or justify named-business conditions in production code.
 
 ### Rationale
 
 - One list-level request avoids turning a result batch into many per-place calls.
 - Separating list ranking from on-demand details keeps request cost tied to the user-visible need.
-- A controlled probe prevents FoodFind from depending on experimental or unavailable provider data.
-- Positive-only evidence avoids false exclusions when reviews or provider data are incomplete.
-- A growing reviewed case set makes search changes comparable without overfitting FoodFind to individual restaurants.
+- The controlled probe prevented FoodFind from depending on incomplete or stale provider evidence.
+- Missing evidence and omitted candidates made dependable food matching impossible with this approach.
+- Reviewed examples can compare future search changes without becoming production rules.
 
 ## Treat Google query-related review evidence as useful but potentially stale
 
 - **Date:** 2026-07-30
-- **Status:** Accepted after Phase 6 Step 1
+- **Status:** Accepted after the completed evidence probe
 
 ### Decision
 
@@ -664,7 +724,7 @@ The controlled Toronto evaluation returned query-related review justifications a
 
 The evidence may be used only as positive, potentially stale support. Missing evidence remains unknown. Any later product use must include Google Maps and review-author attribution, a link to the source review, and an explanation of how review evidence is selected.
 
-The expanded evaluation did not approve review-supported production ranking: only five of ten recorded outcomes matched, some evidence covered only part of the query, and expected businesses missing from Google's first 20 could not benefit from ranking. The complete outcome is recorded in [`phase-6-step-1-probe.md`](phase-6-step-1-probe.md). Production search remains on Iteration 2 while the Step 2 approach is reconsidered.
+The expanded evaluation did not approve review-supported production ranking: only five of ten recorded outcomes matched, some evidence covered only part of the query, and expected businesses missing from Google's first 20 could not benefit from ranking. The complete outcome is recorded in [`phase-6-step-1-probe.md`](phase-6-step-1-probe.md). The investigation ended after the probe, and no follow-on evidence implementation is planned until a stronger, current source is identified.
 
 ### Rationale
 
@@ -674,6 +734,22 @@ The expanded evaluation did not approve review-supported production ranking: onl
 - Two expected chocolate-cake businesses were absent from the candidate set.
 - The mismatch demonstrates that review relevance and current menu availability are different claims.
 - The probe requested `places.reviews`, which Google classifies as Text Search Enterprise + Atmosphere.
+
+## Defer food-match precision
+
+- **Date:** 2026-07-25
+- **Status:** Future enhancement
+
+### Decision
+
+FoodFind will not currently infer food availability from a business name, LLM response, or unexplained Text Search rank. Common-food terms remain relevance signals, which can produce weak matches.
+
+Future work must improve food-search accuracy and make match explanations less confusing while remaining honest about unverified menu items. The evidence sources, filtering behavior, ranking behavior, and explanation rules will be researched and decided when that work begins.
+
+### Rationale
+
+- Removing weak matches without reliable evidence could hide relevant businesses.
+- Provider classification and verified menu availability are different claims and need different explanations.
 
 ## Smart-search interpretation defaults
 
@@ -904,22 +980,6 @@ Interpretation and place search are retried only through another explicit user a
 
 Google documents `currentOpeningHours` as covering the next seven days, including today, in the [Place resource reference](https://developers.google.com/maps/documentation/places/web-service/reference/rest/v1/places).
 
-## Defer food-match precision
-
-- **Date:** 2026-07-25
-- **Status:** Future enhancement
-
-### Decision
-
-FoodFind will not currently infer food availability from a business name, LLM response, or unexplained Text Search rank. Common-food terms remain relevance signals, which can produce weak matches.
-
-Future work must improve food-search accuracy and make match explanations less confusing while remaining honest about unverified menu items. The evidence sources, filtering behavior, ranking behavior, and explanation rules will be researched and decided when that work begins.
-
-### Rationale
-
-- Removing weak matches without reliable evidence could hide relevant businesses.
-- Provider classification and verified menu availability are different claims and need different explanations.
-
 ## Exact natural-language rating comparisons
 
 - **Date:** 2026-07-31
@@ -1113,7 +1173,7 @@ The final audit also established two ordering rules:
 ## Location-first search page and empty default
 
 - **Date:** 2026-07-26
-- **Status:** Accepted for Phase 7 Step 1
+- **Status:** Accepted for current Phase 6 Step 2
 
 ### Decision
 
@@ -1136,63 +1196,3 @@ Device geolocation uses **Current location** as its visible label while retainin
 - Keeping the map directly beside the location step makes its purpose and updates easier to understand.
 - Concise requirement text explains the disabled action without duplicating the same information in a large status card.
 - **Current location** communicates the source more clearly than raw coordinates; the coordinates remain available to the application.
-
-## Remove place type from editable search filters
-
-- **Date:** 2026-07-26
-- **Status:** Current
-
-### Decision
-
-Place type is removed from the browser controls, API filter model, domain `SearchFilters`, interpretation capabilities, and Gemini structured output. Location is the only input required before **Search places**; cuisine, common food, availability, rating, service options, smart search, and sorting remain optional.
-
-FoodFind still searches for food businesses. The Google adapter uses the requested cuisine, common food, or free-form dish as the main query when one is present; otherwise it uses a broad fallback covering restaurants, cafés, bars, and bakeries. It defensively removes results whose known Google types fall outside that scope. It does not send `includedType` or expose provider categories as a user filter. Results with missing type data remain visible as unconfirmed.
-
-Requests that still submit the removed `place_types` property receive HTTP `422` rather than having an ignored filter appear active.
-
-### Rationale
-
-- Choosing a broad business type did not provide useful control compared with cuisine, common-food, and smart-search criteria.
-- Removing the control makes Location the one clear prerequisite for searching.
-- Removing the field end to end prevents smart search from changing an invisible filter.
-- Keeping the food-business scope inside the provider adapter preserves FoodFind's purpose without adding user work.
-
-## Expanded cuisine allowlist
-
-- **Date:** 2026-07-26
-- **Status:** Current
-
-### Decision
-
-Mexican, Japanese, Korean, Vietnamese, and Mediterranean join the existing Chinese, Italian, Persian, Thai, and Indian cuisine options. Each is a FoodFind-owned enum value represented as natural-language relevance text in Google Text Search. Google currently lists corresponding restaurant types in its request-filterable Food and Drink taxonomy.
-
-Cuisine options remain a reviewed allowlist rather than being downloaded dynamically from Google. Adding one requires coordinated updates to the Python domain enum and provider adapter plus the TypeScript type and visible option list; API validation, Gemini capabilities, field limits, and the search lifecycle derive from those definitions without separate use-case changes.
-
-### Rationale
-
-- A reviewed list keeps the interface manageable and prevents raw provider taxonomy from becoming the product model.
-- Explicit cross-layer definitions provide compile-time and boundary validation in both Python and TypeScript.
-- The current approach is suitable for a small list. A server-provided capabilities endpoint would be more appropriate if the option catalog becomes large or changes frequently.
-
-## Expanded common-food allowlist
-
-- **Date:** 2026-07-26
-- **Status:** Current
-
-### Decision
-
-Shawarma, ice cream, dessert, sweets, drinks, sushi, tacos, salad, soup, and pasta join the existing pizza, burgers, steak, ramen, and kebab options. The interface uses the standard spelling **Shawarma**.
-
-Google's current Food and Drink taxonomy contains direct or closely corresponding types for shawarma, ice cream, dessert, sushi, tacos, salad, and soup. Sweets has related confectionery, candy-store, and dessert types. Generic drinks and pasta have no exact Google place type. All Common food options are therefore sent consistently as natural-language Text Search relevance terms rather than structured provider type filters.
-
-Selecting any Common food option changes relevance only. It does not verify current menu availability, and FoodFind continues to show the agreed check-the-menu-or-call warning.
-
-### Rationale
-
-- One relevance-only behavior keeps exact provider categories and ordinary food terms from appearing more reliable than they are.
-- The expanded list supports common discovery language without adding response fields or another Google request.
-- Documenting the missing exact types prevents Pasta, Drinks, or Sweets from being mistaken for provider-verified categories.
-
-### Current provider reference
-
-- Google's Food and Drink taxonomy lists the supported structured types and does not currently include generic pasta or drinks types: [Google Place Types](https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).

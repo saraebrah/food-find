@@ -6,7 +6,7 @@ This file breaks the product into individual features, including expected behavi
 
 This section records how search works after each change. Add a new iteration only when the search behavior changes.
 
-`docs/examples.md` is the human-reviewed evaluation set for FoodFind search. Review its relevant cases before changing request interpretation, provider queries, evidence use, matching, filtering, ranking, or result explanations. Use the examples to improve general behavior, never to hard-code behavior for a named business.
+`docs/examples.md` is human-reviewed evaluation material for FoodFind search. It does not train Gemini or provide runtime evidence. Review relevant cases before changing request interpretation, provider queries, evidence use, matching, filtering, ranking, or result explanations, but never hard-code behavior for a named business.
 
 ### Iteration 1 — Broad Google text query
 
@@ -45,6 +45,16 @@ This section records how search works after each change. Add a new iteration onl
 - Businesses explicitly reported temporarily or permanently closed are excluded from results.
 - Results with missing business status remain visible with an operational-status warning.
 - Missing category or address values are identified as unavailable instead of inferred.
+- The Google adapter treats omitted, blank, and whitespace-only optional values as missing rather than guessing a value.
+- Missing provider fields follow this mapping:
+  - Phone number: show **Phone unavailable** and no Call or Copy actions.
+  - Website: show **Website unavailable** and no empty or unsafe link.
+  - Hours: show **Hours unavailable**, never infer **Closed**. Missing detail hours use an empty collection rather than a guessed schedule.
+  - Rating: keep it as unknown, never `0`. Show **Rating unavailable** when details were requested.
+  - Operational status: keep the result and warn the user to confirm the business is operational.
+  - Other optional information: show a concise unavailable state without empty rows.
+- Blank current-hour descriptions fall back to usable regular hours, and a blank national phone number falls back to an available international number.
+- A missing value cannot satisfy an active open-now, rating, service, or requested-time filter that requires provider confirmation. Conditional list fields that were not requested are not incorrectly labelled unavailable.
 
 The active browser UI is a Svelte 5 and SvelteKit TypeScript application under `frontend/`. Its page-level search handler is the only place that starts a place search; rendering and initializing components do not search. The earlier server-rendered template and deferred JavaScript remain temporarily as a fallback during the transition.
 
@@ -56,6 +66,7 @@ The active browser UI is a Svelte 5 and SvelteKit TypeScript application under `
 - The selected coordinates, radius, normalized filters, and sort are passed into the generalized application use case.
 - Provider values are rendered through Svelte text interpolation rather than interpreted as HTML.
 - The result count and search status are announced through visible text and an ARIA live region.
+- Automated tests cover omitted and blank optional provider values without calling Google.
 
 These states remain explicit and recoverable in local Svelte component state without adding an external state-management library.
 
@@ -76,6 +87,16 @@ These states remain explicit and recoverable in local Svelte component state wit
 - The DOM and visual order is Location and Radius, Map, Smart search and filters, then **Search places**.
 - **Search places** remains disabled until a location is ready.
 - The Location step and Step 3 text explain the requirement; no separate required/ready card is shown.
+
+## Complete journey automation
+
+- Mocked Playwright tests cover a coordinate-based search through manual filters, results, match reasons, details, phone, website, directions, and current-result detail reuse.
+- A separate journey covers address autocomplete, location resolution, the immutable resolved-location search snapshot, and Google place IDs in directions.
+- Smart search is covered from one interpretation through visible criteria, local edits, explicit search, and reload without repeated requests.
+- Current location is covered from explicit browser permission through the normalized location and a later explicit search.
+- Empty results, interpreter failure, and place-search failure have distinct outcomes. Provider failure retries only after another explicit submission.
+- Mobile ordering is checked in Playwright. Map selection, marker/card synchronization, missing provider fields, and detailed component lifecycles use browser-component tests with injected fakes.
+- All external API responses and map/geolocation boundaries are mocked. These tests make no Google or Gemini request and do not evaluate Google's search relevance.
 
 ## Search feedback and recovery
 

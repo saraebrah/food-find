@@ -152,51 +152,26 @@ The LLM resolves language into a validated FoodFind intent; it does not call Goo
 
 This phase completes the spatial experience after the result criteria are useful and proven. Every accepted map point and device location produces the same normalized selected-location model used by coordinates and autocomplete.
 
-## Phase 6 — Evidence-supported food search
-
-- **Priority:** P0
-- **Status:** Paused after Step 1
-- **Why paused:** Google does not expose complete menus or review evidence, and the available evidence is too incomplete or stale to support reliable food matching. Revisit when a better evidence source is identified.
-
-1. [x] Run one controlled Google evidence probe for Toronto.
-   - Submit one explicit food query through Text Search and request query-related review or contextual evidence in the same response.
-   - Use the human-reviewed cases in [`docs/examples.md`](examples.md) to judge search quality. Add cases over time, but never hard-code behavior for a named business.
-   - Confirm what Google actually returns for Toronto, whether the evidence is useful, the required attribution, and the billed SKU before building product behavior around it.
-   - Stop after the probe and review the result. Do not assume experimental contextual content is available or useful.
-   - The July 30, 2026 result and Step 1 conclusion are recorded in [`docs/phase-6-step-1-probe.md`](phase-6-step-1-probe.md).
-   - A July 31 Pro-only pagination follow-up recovered one missing example on page 2 but not the other within 60 results. Consider on-demand pagination separately from evidence accuracy before Step 2.
-2. [ ] If the probe is useful, build Iteration 3 as one conditional Enterprise + Atmosphere Text Search with review-supported ranking.
-   - When list-wide evidence is needed, request it in the original Text Search. Do not make a Pro search followed by Place Details calls for every candidate.
-   - Keep Place Details on demand for information needed only after the user opens one result.
-   - Treat a relevant review mention as positive, potentially stale evidence—not verified menu availability. Promote supported results without removing a result merely because evidence is missing.
-   - Define how evidence-supported ranking interacts with an explicit Distance or Rating sort before enabling it.
-3. [ ] Add strict development and runtime cost safeguards.
-   - Keep all automated tests on synthetic mocked responses. Never run live Google or supporting-provider calls in the normal test suite or CI.
-   - Make live quality evaluation explicit and opt-in, with a configurable development limit initially set to 100 Enterprise + Atmosphere Text Searches per month.
-   - Preserve the explicit **Search** boundary, prevent automatic retries and request loops, and use Cloud quotas and alerts where available.
-   - Follow provider storage and attribution rules. Do not depend on persistent caching of Google content; stored Google Place IDs remain the permitted durable reference.
-4. [ ] Separately evaluate Foursquare as a supporting evidence provider.
-   - Compare one controlled Foursquare food search with the same query, location, and radius used for Google.
-   - Review Toronto coverage, tips and tastes, licensing, attribution, pricing, entity matching, and whether the evidence improves results before integrating anything.
-   - Do not add a second provider request to every FoodFind search until its value and cost are demonstrated.
-5. [ ] Establish a provider-independent food-evidence layer.
-   - Normalize evidence, source, age, and confidence separately from place discovery so Google, Foursquare, open data, restaurant websites, or restaurant-owned menus can be added or replaced later.
-   - Keep provider-specific response parsing in adapters. Ranking rules consume normalized evidence and must never treat missing evidence as proof that a food is unavailable.
-   - Preserve and expand [`docs/examples.md`](examples.md) as the evaluation set for each search-quality change.
-
-This phase improves FoodFind's central search quality with evidence rather than unsupported exclusions. The first live probe is a gate: if Google evidence is unavailable, weak, or too costly, review the Foursquare option before choosing an implementation.
-
-## Phase 7 — First-version cleanup
+## Phase 6 — First-version cleanup
 
 - **Priority:** P1
-- **Status:** Paused after Step 1
+- **Status:** Complete
 
-1. [x] Improve desktop and mobile layouts, beginning with a location-first search flow, map placement, concise location guidance, and a responsive final search action.
-2. [ ] Add keyboard and accessibility support.
-3. [ ] Handle missing provider fields consistently.
-4. [ ] Add compliant short-lived caching if useful.
-5. [ ] Verify the complete journey with automated tests.
-6. [ ] Fix usability and performance problems found during real use.
+1. [x] Close the evidence-supported food-search investigation after one controlled Google probe.
+   - Google returned incomplete or stale review evidence and omitted some expected candidates, so it could not reliably confirm current menu availability or support dependable food matching.
+   - Do not build the proposed review-supported ranking, supporting-provider evaluation, or food-evidence layer now. Reconsider food evidence only when a stronger, current source is identified.
+   - Keep [`docs/examples.md`](examples.md) as evaluation material, not Gemini training data or named-business production rules.
+   - See the completed findings in [`docs/phase-6-step-1-probe.md`](phase-6-step-1-probe.md).
+2. [x] Improve the layout, beginning with a location-first search flow, map placement, concise location guidance, and a responsive final search action.
+3. [x] Prevent a new smart-search request from retaining filters created by an earlier request.
+4. [x] Support exact textual and symbolic **greater than** and **at least** rating comparisons.
+   - Send Google a safe supported prefilter, then apply the user's exact comparison to returned ratings without another request.
+5. [x] Handle missing provider fields consistently.
+   - Treat omitted, blank, and whitespace-only optional provider values as unknown rather than usable data.
+   - Show unavailable labels for requested summary and detail values, omit unusable phone and website actions, and require explicit provider confirmation for active filters.
+6. [x] Verify the complete journey with automated tests.
+   - Cover address, coordinates, and current-location paths; smart and manual criteria; results, details, and actions; empty and failed searches; explicit retry boundaries; and mobile layout with mocked browser tests.
+   - Keep map and geolocation adapters injected, mock every Google and Gemini response, and make no live provider request.
 
 This phase improves the complete working flow after the core behavior is established.
 
@@ -221,6 +196,10 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 - Keep selected values visible as removable chips or counts, preserve keyboard and screen-reader support, and do not hide active filters inside a closed dropdown.
 - Keep Rating and Sort single-select unless their product behavior changes. A presentation change must not alter the normalized filter contract or search semantics.
 
+### Keyboard and accessibility support
+
+- Make the complete search flow keyboard- and screen-reader-accessible, including visible focus, labelled controls, accessible autocomplete, and announced errors and results.
+
 ### Verified menu and dish discovery
 
 - Link to menus from restaurant-owned, licensed, or directly submitted sources, with the option to display appropriate menu content inside FoodFind later.
@@ -232,7 +211,7 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 - Common-food searches can return weak matches. For example, Gigi's Street Eats appeared for **burger** even though FoodFind had no reliable evidence that it offered burgers.
 - The current explanation is also too generic. A business that is clearly categorized as a burger restaurant can still receive **Burger availability is not verified**, making FoodFind appear uncertain about why the result matched.
-- Phase 6 uses the observed Gigi's Street Eats and The Burger's Priest cases to evaluate review-supported evidence and ranking. Later work can add stronger menu or restaurant-owned evidence without treating provider categories or missing evidence as proof.
+- A controlled Google probe did not provide reliable enough evidence to solve these problems: review evidence was incomplete or stale, current menus were unavailable, and some expected businesses were missing from the candidate set. Reconsider this work when a stronger, current evidence source is identified.
 
 ### Walking, transit, and driving travel times
 
@@ -251,6 +230,10 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 - Upgrade `google-genai` before moving to Python 3.17 so it no longer relies on Python's deprecated internal `_UnionGenericAlias`.
 
+### Broader response caching
+
+- Same-card details are already reused during the current page session. Consider compliant short-lived caching across repeated searches or reloads only if duplicate provider requests become a demonstrated problem.
+
 ### Other product enhancements
 
 - Reconsider whether **Use current location** should search immediately after resolving the position instead of waiting for a separate **Search** action.
@@ -259,18 +242,6 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 - Reservation integration
 - Native mobile application
 
-### New smart searches can retain filters from an earlier request
-
-- **Status:** Resolved — 2026-07-31
-- Applying a new smart-search sentence could preserve filters created by the previous sentence even when the new request did not mention them.
-- Observed example: after applying a burger search, applying **Chinese food** selected Chinese cuisine but left **Burger** selected under Common food. The following place search therefore still included burger even though it was absent from the new sentence.
-
-### Exact natural-language rating comparisons
-
-- **Status:** Resolved — 2026-07-31
-- FoodFind preserves exact textual and symbolic **greater than** and **at least** rating comparisons from smart search. It sends Google a safe lower half-point prefilter and applies the exact comparison to returned ratings without another request.
-- Example: **rating greater than 4.8** sends Google `minRating: 4.5`, then FoodFind keeps only returned places rated above 4.8.
-
 ## Current next task
 
-Start Phase 6 Step 1 with one controlled Toronto evidence probe. Pause afterward to review the returned evidence, attribution requirements, and billed SKU before building Iteration 3.
+Phase 6 is complete. No new implementation task has been selected.

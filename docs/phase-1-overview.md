@@ -712,7 +712,7 @@ Likely extension:
 
 Current-location support should not need a separate Google integration.
 
-### Phase 6: smart search
+### Smart search (implemented later in Phase 4)
 
 Current foundation:
 

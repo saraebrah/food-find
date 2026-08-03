@@ -193,6 +193,11 @@ def test_search_script_is_served_as_a_static_asset(client: TestClient) -> None:
     assert "function closedBusinessStatus(" not in response.text
     assert '"Category unavailable"' in response.text
     assert '"Address unavailable"' in response.text
+    assert '"Rating unavailable"' in response.text
+    assert '"Current open status unavailable"' in response.text
+    assert '"Hours unavailable"' in response.text
+    assert '"Phone unavailable"' in response.text
+    assert '"Website unavailable"' in response.text
 
 
 def test_page_loads_do_not_search_provider(client: TestClient) -> None:
