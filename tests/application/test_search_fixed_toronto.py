@@ -1,5 +1,3 @@
-from collections.abc import Sequence
-
 import pytest
 
 from app.application.search_fixed_toronto import (
@@ -7,12 +5,12 @@ from app.application.search_fixed_toronto import (
     TORONTO_SEARCH_RADIUS_METERS,
     SearchFixedTorontoPlaces,
 )
-from app.domain.place import Place
 from app.domain.search import SearchFilters, SearchSort
 from app.domain.search_intent import (
     AvailabilityWindow,
     DescriptiveRequirement,
 )
+from app.ports.place_provider import PlaceSearchPage
 
 
 class RecordingPlaceProvider:
@@ -29,7 +27,8 @@ class RecordingPlaceProvider:
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.searches.append(
             {
                 "latitude": latitude,
@@ -39,7 +38,7 @@ class RecordingPlaceProvider:
                 "sort": sort,
             }
         )
-        return []
+        return PlaceSearchPage(places=())
 
 
 @pytest.mark.anyio

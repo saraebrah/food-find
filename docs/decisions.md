@@ -641,7 +641,7 @@ Current location remains combined with the map phase. Delaying the map therefore
 
 All food-business discovery uses Google Text Search. FoodFind does not route individual searches between Nearby Search and Text Search. Google location autocomplete, selected-location resolution, and on-demand Place Details remain separate and unchanged.
 
-One explicit FoodFind search produces one Text Search request with `pageSize=20`. The current implementation does not request continuation batches; automatic top-up and infinite scrolling remain future work. Rendering, reloading, and editing criteria still produce no search request.
+One explicit FoodFind search targets 20 valid results. It sends `pageSize=20`, follows Google's continuation token for at most three total requests when filtering leaves the list short, deduplicates and sorts the collected candidates once, and displays one final list without **Load more**. Rendering, reloading, and editing criteria produce no search request.
 
 The Google adapter constructs a deterministic `textQuery` from the submitted cuisine, common food, and descriptive requirements. Cuisine and common food can coexist. When a specific dish already contains a selected common-food term, the adapter omits the repeated broad term from the provider query. Their presence means Google text relevance, not verified menu availability.
 
@@ -655,7 +655,7 @@ An active Open now filter sends `openNow=true`; an active rating comparison send
 
 - Text Search supports combined cuisine and common-food language instead of forcing both concepts into one misleading primary-type OR restriction.
 - Provider-side Open now and minimum-rating filters preserve more relevant candidates than filtering those criteria only after a fixed Nearby Search result set.
-- Continuation tokens provide a supported path to later automatic top-up and infinite scrolling.
+- Continuation tokens let FoodFind replace candidates removed by its own filters without changing the submitted search.
 - One discovery endpoint gives manual filters and the future LLM interpretation one consistent Google request path.
 - Keeping the normalized provider port and application filtering preserves replaceability and testability.
 
@@ -664,7 +664,7 @@ An active Open now filter sends `openNow=true`; an active rating comparison send
 - Text relevance and defensive returned-type filtering are less exact than a single strict Google type.
 - Rectangular restriction can return candidates outside the selected circle, so local filtering may shorten a batch.
 - Text relevance does not verify that a restaurant currently serves a requested dish.
-- The current single batch remains capped at 20 candidates and is not a complete business directory.
+- Additional batches add cost and waiting time, can still leave fewer than 20 valid results, and do not make Text Search a complete business directory.
 
 ### Current provider references
 
@@ -993,7 +993,7 @@ The interpreter treats textual and symbolic forms consistently. `> 4.7` and `>4.
 
 Google rounds `minRating` upward to a half-point value. FoodFind therefore sends the greatest half-point that does not exceed the requested threshold, then applies the exact comparison to the returned normalized ratings. For **rating greater than 4.8**, Google receives `minRating: 4.5`; FoodFind excludes ratings of 4.8 or lower. **At least 4.8** includes 4.8. Missing ratings do not satisfy either comparison.
 
-This remains one Enterprise Text Search request with `places.rating`. It creates no Place Details request and does not change the explicit-search lifecycle. The safe coarse prefilter can still leave fewer than 20 visible candidates because continuation batches remain deferred.
+Every required batch remains an Enterprise Text Search request with `places.rating`. This creates no Place Details request and does not change the explicit-search lifecycle. FoodFind applies the exact comparison after combining the fetched candidates.
 
 ### Rationale
 

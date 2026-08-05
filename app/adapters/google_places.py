@@ -19,7 +19,11 @@ from app.domain.search_intent import (
     DescriptiveRequirement,
     DescriptiveRequirementKind,
 )
-from app.ports.place_provider import PlaceProvider, PlaceProviderError
+from app.ports.place_provider import (
+    PlaceProvider,
+    PlaceProviderError,
+    PlaceSearchPage,
+)
 
 
 GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
@@ -33,6 +37,7 @@ GOOGLE_FIELD_MASK = ",".join(
         "places.formattedAddress",
         "places.location",
         "places.businessStatus",
+        "nextPageToken",
     )
 )
 GOOGLE_CURRENT_OPENING_HOURS_FIELD = "places.currentOpeningHours"
@@ -123,7 +128,10 @@ class GooglePlaceRecord(BaseModel):
 
 
 class GoogleTextSearchResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     places: list[GooglePlaceRecord] = Field(default_factory=list)
+    next_page_token: str | None = Field(default=None, alias="nextPageToken")
 
 
 class GooglePlaceDetailsRecord(BaseModel):
@@ -356,7 +364,8 @@ class GooglePlacesGateway(PlaceProvider):
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> list[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         if not 0 < radius_meters <= 50_000:
             raise ValueError("Radius must be greater than zero and at most 50,000 metres")
 
@@ -378,6 +387,8 @@ class GooglePlacesGateway(PlaceProvider):
             request_body["minRating"] = floor(filters.minimum_rating * 2) / 2
         if sort is SearchSort.DISTANCE:
             request_body["rankPreference"] = "DISTANCE"
+        if continuation_token is not None:
+            request_body["pageToken"] = continuation_token
 
         try:
             response = await self._http_client.post(
@@ -400,14 +411,18 @@ class GooglePlacesGateway(PlaceProvider):
         except (httpx.HTTPError, ValueError) as error:
             raise PlaceProviderError("Google Places search failed") from error
 
-        return [
-            self._to_place(
-                place,
-                availability_window=availability_window,
-            )
-            for place in google_response.places
-            if not place.types or GOOGLE_FOOD_BUSINESS_TYPES.intersection(place.types)
-        ]
+        return PlaceSearchPage(
+            places=tuple(
+                self._to_place(
+                    place,
+                    availability_window=availability_window,
+                )
+                for place in google_response.places
+                if not place.types
+                or GOOGLE_FOOD_BUSINESS_TYPES.intersection(place.types)
+            ),
+            continuation_token=google_response.next_page_token,
+        )
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails:
         if not provider_place_id.strip():

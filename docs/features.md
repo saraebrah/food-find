@@ -24,7 +24,7 @@ This section records how search works after each change. Add a new iteration onl
 - When a specific dish already contains a selected common-food term, FoodFind sends the specific dish only. For example, **margherita pizza** is not expanded to **pizza margherita pizza**.
 - When the request has no food-specific term, FoodFind keeps the broad food-business query. A preference such as **quiet atmosphere** is added to that broad query.
 - Location, radius, filters, and defensive removal of known non-food results work as before.
-- The change still uses one Google Text Search request and the same response fields. It improves the query focus but does not verify menu availability or reveal Google's relevance score.
+- The query-focus change adds no response fields or requests by itself. The current automatic-fill policy may still request continuation batches after FoodFind filters the candidates.
 
 ## Place search
 
@@ -203,7 +203,7 @@ Map selection and device current location are available in Phase 5.
 - Map-selected points initially show coordinates rather than a resolved street address. Device selection uses **Current location** without reverse geocoding.
 - Device accuracy depends on the browser, hardware, and operating-system settings; high accuracy is a preference rather than a guarantee.
 - A reload resets the location to empty and restores the neutral map view and default criteria. It does not repeat the previous search.
-- The map displays only the current first Text Search batch, which is limited to at most 20 candidates in this version.
+- The map displays the same final list of up to 20 valid results as the cards.
 - Deployment still requires HTTPS and a FoodFind map ID; local development continues to use `DEMO_MAP_ID`.
 - Location selection intentionally waits for **Search**. Immediate search remains a possible future enhancement.
 
@@ -256,10 +256,11 @@ Map selection and device current location are available in Phase 5.
 - FoodFind also requires the normalized `open_now` value to be explicitly true; false and missing values do not satisfy the active filter.
 - When a rating threshold is active, the adapter sends the greatest half-point `minRating` that does not exceed the requested value and adds `places.rating` to the conditional Enterprise field mask. For **rating greater than 4.8**, Google receives `4.5`, avoiding Google's upward rounding to `5.0`.
 - FoodFind applies the exact comparison to Google's returned ratings: **greater than 4.8** excludes 4.8, while **at least 4.8** includes it. A missing rating satisfies neither comparison.
-- Rating sorting is applied highest-first after Google returns its candidates. Missing ratings remain available when no minimum is active and appear last; equal ratings preserve Google's relative order.
+- Rating sorting is applied highest-first after all requested batches are filtered and combined. Missing ratings remain available when no minimum is active and appear last; equal ratings preserve Google's relative order.
 - When Dine-in is selected, the Google adapter adds only `places.dineIn`; when Takeout is selected, it adds only `places.takeout`. Either field makes that one search Enterprise + Atmosphere. Inactive service filters add neither field.
 - Text Search has no request parameter for Dine-in or Takeout. FoodFind therefore retains only places whose normalized value is explicitly true for every selected service; false and missing values do not satisfy the filter.
-- The current implementation requests one Text Search batch of at most 20 candidates. Exact radius, known non-food type, closure, Dine-in, Takeout, and defensive Open now or rating filtering may shorten the visible list. Continuation batches are deferred.
+- One explicit search targets 20 valid results. If a batch remains short after filtering, FoodFind follows Google's continuation token for at most three total Text Search requests, deduplicates the combined candidates, sorts once, and returns one final list. It stops early at 20 valid results, no token, a repeated token, or a continuation failure.
+- A failed first request remains an error. A later continuation failure returns the valid results already collected, so the final list may contain fewer than 20.
 - A retained result displays an **Open now** tag using the value already returned by the search. Rendering the tag makes no extra request.
 - A returned summary rating is labelled as a Google Maps rating and displayed without an extra detail request.
 - Food truck is not shown as a current filter because its FoodFind behavior and Text Search quality have not been defined and verified.
@@ -273,27 +274,27 @@ Map selection and device current location are available in Phase 5.
 - Unsupported criteria cannot appear to be active while having no effect.
 - Adding a later filter extends the existing filter object rather than adding an unrelated top-level request parameter.
 - Selecting or clearing a checkbox makes no provider request and removes results from the previous criteria.
-- One explicit search sends the complete normalized criteria and produces one Text Search request.
+- One explicit search sends one immutable criteria snapshot and produces one to three Text Search requests only while filling its final result list.
 - Multiple cuisines or multiple common-food choices use OR behavior within their own group.
 - Cuisine and common-food choices can appear together in the browser, API, and domain state and are both represented in `textQuery`.
 - A search with food-specific terms uses those as its main query; otherwise it uses the broad food-business fallback. Known non-food results are removed defensively.
 - Every returned result is inside the selected circular radius after application filtering.
-- Choosing distance changes provider ranking without making an extra request or adding a routing request.
+- Choosing distance changes provider ranking without adding a routing request; the combined valid results are sorted once by FoodFind's exact distance.
 - The Google response field mask is unchanged when any Pro filter or sort changes.
 - Changing Open now makes no request until the user explicitly searches.
 - A default search omits `places.currentOpeningHours` and remains Pro.
-- An Open now search sends `openNow=true`, adds only `places.currentOpeningHours`, makes one Enterprise Text Search request, and returns only places whose value is true.
+- An Open now search sends `openNow=true`, adds only `places.currentOpeningHours` to every required batch, and returns only places whose value is true.
 - A place with false or missing current-opening-hours data does not satisfy Open now.
-- Selecting a minimum rating or rating sorting adds only `places.rating` to the search field mask and makes no extra request.
+- Selecting a minimum rating or rating sorting adds only `places.rating` to the search field mask and makes no per-place detail request.
 - Manual minimum-rating choices remain 3.0, 3.5, 4.0, and 4.5. Smart search and the API can preserve an exact threshold from 0 to 5.
 - **Greater than** and **at least** remain distinct through interpretation, browser review, the search request, and final filtering. The threshold is never rounded upward or silently changed.
 - Google receives only a safe half-point prefilter at or below the exact threshold; FoodFind applies the exact comparison to the returned candidates.
 - A missing rating is excluded by a minimum filter but retained at the end of rating-sorted results when no minimum is active.
 - Rating sorting is descending and stable for equal values.
-- Combining multiple Enterprise filters adds each required field once to the same Text Search request.
+- Combining multiple Enterprise filters adds each required field once to every required Text Search batch.
 - Changing Dine-in or Takeout makes no request until the user explicitly searches.
 - A search with neither service selected omits `places.dineIn` and `places.takeout`; it does not become Enterprise + Atmosphere.
-- Selecting Dine-in or Takeout adds only the corresponding field to the same Text Search request. Selecting both adds each field once and still produces one request.
+- Selecting Dine-in or Takeout adds only the corresponding field to every required batch. Selecting both adds each field once per batch.
 - A place with a false or missing service value does not satisfy that active service filter.
 
 ## Result summaries

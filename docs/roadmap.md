@@ -87,7 +87,7 @@ Manual controls establish the search model that smart search will later use. A f
    - Keep business type out of the editable filter contract and remove returned places whose known Google types fall outside FoodFind's broad food-business scope.
    - Restrict Google to a rectangle enclosing the selected circle, calculate exact straight-line distance in FoodFind, and remove outside-radius candidates.
    - Send Open now and minimum rating as Text Search request filters. Continue to request only the response fields required by active filters and sorts.
-   - Keep the MVP to one Google request per submitted search and one batch of up to 20 candidates. Pagination and infinite scrolling remain future enhancements.
+   - Initially keep the MVP to one Google request per submitted search and one batch of up to 20 candidates; the later automatic-fill enhancement supersedes this limit.
 2. [x] Define a provider-independent `SearchIntent` for the LLM's structured output.
    - Keep structured filters, descriptive requirements, assumptions, and unsupported criteria separate.
    - Use the agreed rating and time-language defaults in `docs/decisions.md`.
@@ -172,23 +172,25 @@ This phase completes the spatial experience after the result criteria are useful
 6. [x] Verify the complete journey with automated tests.
    - Cover address, coordinates, and current-location paths; smart and manual criteria; results, details, and actions; empty and failed searches; explicit retry boundaries; and mobile layout with mocked browser tests.
    - Keep map and geolocation adapters injected, mock every Google and Gemini response, and make no live provider request.
+7. [x] Automatically fill the result list. Completed 2026-08-04.
+   - Try to show 20 valid results after FoodFind removes duplicates and places that do not meet the search criteria.
+   - If the first Google batch is not enough, automatically request the next batch. Stop after 20 valid results, no more Google results, three total requests, or a failed additional request.
+   - Combine the batches, sort the results once, and then show the final list. Reloading the page or editing the search does not request more batches.
+   - More batches can improve coverage, but they add cost and waiting time and still may not produce 20 results.
+   - See [Google Places Search Limitations](google-places-search-limitations.md) for the provider constraints behind this behavior.
+
+   **Why FoodFind does not show 10 results and then add five at a time**
+
+   - **Relevance:** Google keeps its relevance order across continuation batches, so adding later results would preserve that order.
+   - **Distance:** Google can return results in distance order, and FoodFind calculates the exact distance, so adding later results would also be manageable.
+   - **Rating:** Google cannot order all Text Search batches by rating. A later batch could contain a higher-rated place than the first 10, so FoodFind would have to rearrange results the user already saw or leave them in the wrong order.
+   - FoodFind therefore collects up to 20 valid results first, sorts them once, and displays them together without a **Load more** button.
 
 This phase improves the complete working flow after the core behavior is established.
 
 ## Future enhancements
 
 - **Priority:** P2
-
-### Automatically fill the result list
-
-- FoodFind's Text Search response can include a continuation token, but the current MVP intentionally ignores it after the first batch.
-- Later, if a Text Search batch and FoodFind's filters leave fewer than 20 valid results, automatically request another batch and add its valid results. Continue until there are 20 valid results or Google has no more batches.
-- Each additional batch is another Google API request. Before building this, set a maximum number of extra batches so one search cannot create too many requests or an accidental loop. For example, FoodFind might allow at most two extra batches for one search, but the actual limit will be decided when this enhancement is built.
-- Stop requesting batches as soon as FoodFind has 20 valid results, Google has no more batches, the fixed batch limit is reached, or a request fails.
-- Every extra batch must belong to the same submitted search. Apply the same location, radius, and filters, and do not show the same place twice.
-- Page reloads, displaying existing results, and editing filters must not make these additional requests. They occur only while completing a search the user explicitly submitted.
-
-See [Google Places Search Limitations](google-places-search-limitations.md) for the differences between Nearby Search and Text Search that affect this work.
 
 ### Scalable filter controls
 
@@ -244,4 +246,4 @@ See [Google Places Search Limitations](google-places-search-limitations.md) for 
 
 ## Current next task
 
-Phase 6 is complete. No new implementation task has been selected.
+Automatic result-list filling is complete. No new implementation task has been selected.
