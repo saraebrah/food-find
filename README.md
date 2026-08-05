@@ -98,7 +98,7 @@ GEMINI_MODEL=gemini-3.6-flash
 
 `GEMINI_MODEL` is optional; `gemini-3.6-flash` is the default. Keep the key server-side and do not reuse it in frontend code, logs, or test fixtures.
 
-The browser calls Gemini only when the user explicitly selects **Apply request**. Loading, reloading, typing, rendering, and editing interpreted criteria make no Gemini request, and applying an interpretation does not automatically call Google Places. Selecting **Search** sends the reviewed criteria in one Google Text Search request without calling Gemini again. A future-time preference conditionally requests current opening hours, which makes that search Enterprise. Automated tests use fake responses.
+The browser calls Gemini only when the user explicitly selects **Apply request**. Loading, reloading, typing, rendering, and editing interpreted criteria make no Gemini request, and applying an interpretation does not automatically call Google Places. Selecting **Search** sends the reviewed criteria without calling Gemini again. FoodFind may make up to three Google Text Search requests to collect 20 valid results. A future-time preference conditionally requests current opening hours, which makes each required batch Enterprise. Automated tests use fake responses.
 
 Gemini receives the submitted search state, selected-location label and coordinates, local date and time, timezone, and supported-capability list. Google states that free-tier content may be used to improve its products, so do not submit secrets or unnecessary sensitive information.
 

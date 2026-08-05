@@ -37,7 +37,8 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
         assert request.headers["X-Goog-FieldMask"] == (
             "places.id,places.displayName,places.primaryType,places.types,"
             "places.primaryTypeDisplayName,places.formattedAddress,places.location,"
-            "places.businessStatus,places.currentOpeningHours,places.rating"
+            "places.businessStatus,nextPageToken,places.currentOpeningHours,"
+            "places.rating"
         )
         assert "test-api-key" not in str(request.url)
         assert "test-api-key" not in request.content.decode()
@@ -81,7 +82,7 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
 
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -94,7 +95,7 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
         )
 
     assert request_count == 1
-    assert places == [
+    assert page.places == (
         Place(
             provider="google",
             provider_place_id="google-place-1",
@@ -107,8 +108,38 @@ async def test_text_search_makes_one_server_side_google_request() -> None:
             open_now=True,
             rating=4.6,
             distance_meters=None,
+        ),
+    )
+
+
+@pytest.mark.anyio
+async def test_text_search_maps_and_submits_google_continuation_token() -> None:
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["pageToken"] == "previous-google-token"
+        assert "nextPageToken" in request.headers["X-Goog-FieldMask"].split(",")
+        return httpx.Response(
+            200,
+            request=request,
+            json={"places": [], "nextPageToken": "next-google-token"},
         )
-    ]
+
+    transport = httpx.MockTransport(handle_request)
+    async with httpx.AsyncClient(transport=transport) as http_client:
+        page = await GooglePlacesGateway(
+            api_key="test-api-key",
+            http_client=http_client,
+        ).search_nearby(
+            latitude=43.6453,
+            longitude=-79.3806,
+            radius_meters=1_000,
+            filters=SearchFilters(),
+            sort=SearchSort.PROVIDER_DEFAULT,
+            continuation_token="previous-google-token",
+        )
+
+    assert page.places == ()
+    assert page.continuation_token == "next-google-token"
 
 
 @pytest.mark.anyio
@@ -152,7 +183,7 @@ async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
 
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -163,7 +194,7 @@ async def test_text_search_combines_cuisine_and_common_food_in_query() -> None:
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
-    assert places == []
+    assert page.places == ()
 
 
 def test_text_search_maps_the_expanded_cuisines_to_query_text() -> None:
@@ -267,7 +298,8 @@ async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods()
         assert request.headers["X-Goog-FieldMask"] == (
             "places.id,places.displayName,places.primaryType,places.types,"
             "places.primaryTypeDisplayName,places.formattedAddress,places.location,"
-            "places.businessStatus,places.currentOpeningHours,places.timeZone"
+            "places.businessStatus,nextPageToken,places.currentOpeningHours,"
+            "places.timeZone"
         )
         return httpx.Response(
             200,
@@ -319,7 +351,7 @@ async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods()
             api_key="test-api-key",
             http_client=http_client,
         )
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -336,7 +368,7 @@ async def test_text_search_adds_reviewed_text_and_maps_current_opening_periods()
             availability_window=window,
         )
 
-    assert places[0].opening_periods == (
+    assert page.places[0].opening_periods == (
         OpeningPeriod(
             starts_at=datetime.fromisoformat("2026-07-23T17:00:00-04:00"),
             ends_at=datetime.fromisoformat("2026-07-23T23:00:00-04:00"),
@@ -351,7 +383,7 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
         assert request.headers["X-Goog-FieldMask"] == (
             "places.id,places.displayName,places.primaryType,places.types,"
             "places.primaryTypeDisplayName,places.formattedAddress,places.location,"
-            "places.businessStatus"
+            "places.businessStatus,nextPageToken"
         )
         assert body["textQuery"] == "restaurants or cafes or bars or bakeries"
         assert "includedType" not in body
@@ -375,7 +407,7 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
 
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -383,7 +415,7 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
-    assert places == [
+    assert page.places == (
         Place(
             provider="google",
             provider_place_id="google-place-2",
@@ -394,8 +426,8 @@ async def test_text_search_preserves_missing_optional_place_fields() -> None:
             coordinates=Coordinates(latitude=43.65, longitude=-79.38),
             business_status=None,
             distance_meters=None,
-        )
-    ]
+        ),
+    )
 
 
 @pytest.mark.anyio
@@ -425,7 +457,7 @@ async def test_text_search_removes_known_non_food_business_types() -> None:
     transport = httpx.MockTransport(handle_request)
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -433,7 +465,7 @@ async def test_text_search_removes_known_non_food_business_types() -> None:
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
-    assert [place.provider_place_id for place in places] == ["restaurant"]
+    assert [place.provider_place_id for place in page.places] == ["restaurant"]
 
 
 @pytest.mark.anyio
@@ -460,7 +492,7 @@ async def test_text_search_treats_blank_optional_text_as_missing() -> None:
     transport = httpx.MockTransport(handle_request)
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -468,16 +500,16 @@ async def test_text_search_treats_blank_optional_text_as_missing() -> None:
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
-    assert places[0].category is None
-    assert places[0].category_code == "restaurant"
-    assert places[0].address is None
+    assert page.places[0].category is None
+    assert page.places[0].category_code == "restaurant"
+    assert page.places[0].address is None
 
 
 @pytest.mark.anyio
 async def test_rating_sort_requests_rating_without_opening_hours() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         field_mask = request.headers["X-Goog-FieldMask"]
-        assert field_mask.endswith("places.businessStatus,places.rating")
+        assert field_mask.endswith("nextPageToken,places.rating")
         assert "currentOpeningHours" not in field_mask
         body = json.loads(request.content)
         assert "rankPreference" not in body
@@ -487,7 +519,7 @@ async def test_rating_sort_requests_rating_without_opening_hours() -> None:
     transport = httpx.MockTransport(handle_request)
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -495,14 +527,14 @@ async def test_rating_sort_requests_rating_without_opening_hours() -> None:
             sort=SearchSort.RATING,
         )
 
-    assert places == []
+    assert page.places == ()
 
 
 @pytest.mark.anyio
 async def test_text_search_conditionally_requests_and_maps_service_fields() -> None:
     async def handle_request(request: httpx.Request) -> httpx.Response:
         field_mask = request.headers["X-Goog-FieldMask"]
-        assert field_mask.endswith("places.businessStatus,places.dineIn,places.takeout")
+        assert field_mask.endswith("nextPageToken,places.dineIn,places.takeout")
         assert "currentOpeningHours" not in field_mask
         assert "places.rating" not in field_mask
         return httpx.Response(
@@ -524,7 +556,7 @@ async def test_text_search_conditionally_requests_and_maps_service_fields() -> N
     transport = httpx.MockTransport(handle_request)
     async with httpx.AsyncClient(transport=transport) as http_client:
         gateway = GooglePlacesGateway(api_key="test-api-key", http_client=http_client)
-        places = await gateway.search_nearby(
+        page = await gateway.search_nearby(
             latitude=43.6453,
             longitude=-79.3806,
             radius_meters=1000,
@@ -532,8 +564,8 @@ async def test_text_search_conditionally_requests_and_maps_service_fields() -> N
             sort=SearchSort.PROVIDER_DEFAULT,
         )
 
-    assert places[0].dine_in is True
-    assert places[0].takeout is False
+    assert page.places[0].dine_in is True
+    assert page.places[0].takeout is False
 
 
 @pytest.mark.parametrize(

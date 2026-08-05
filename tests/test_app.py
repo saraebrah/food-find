@@ -1,4 +1,4 @@
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from datetime import datetime
 
 import pytest
@@ -16,7 +16,7 @@ from app.domain.search_intent import (
     DescriptiveRequirement,
 )
 from app.main import app, get_current_datetime, get_place_provider
-from app.ports.place_provider import PlaceProviderError
+from app.ports.place_provider import PlaceProviderError, PlaceSearchPage
 
 
 class RecordingPlaceProvider:
@@ -38,7 +38,8 @@ class RecordingPlaceProvider:
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.call_count += 1
         self.searches.append(
             {
@@ -51,7 +52,7 @@ class RecordingPlaceProvider:
                 "availability_window": availability_window,
             }
         )
-        return [
+        return PlaceSearchPage(places=(
             Place(
                 provider="google",
                 provider_place_id="google-place-1",
@@ -75,8 +76,8 @@ class RecordingPlaceProvider:
                         ),
                     ),
                 ),
-            )
-        ]
+            ),
+        ))
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails:
         self.detail_call_count += 1
@@ -106,7 +107,8 @@ class FailingPlaceProvider:
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         raise PlaceProviderError("private provider details")
 
     async def get_details(self, *, provider_place_id: str) -> PlaceDetails:

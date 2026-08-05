@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from datetime import datetime
 
 import pytest
@@ -28,6 +27,7 @@ from app.domain.search_intent import (
     DescriptiveRequirement,
     DescriptiveRequirementKind,
 )
+from app.ports.place_provider import PlaceSearchPage
 
 
 class RecordingPlaceProvider:
@@ -44,7 +44,8 @@ class RecordingPlaceProvider:
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.searches.append(
             {
                 "latitude": latitude,
@@ -54,7 +55,7 @@ class RecordingPlaceProvider:
                 "sort": sort,
             }
         )
-        return [
+        return PlaceSearchPage(places=(
             Place(
                 provider="google",
                 provider_place_id="google-place-1",
@@ -110,7 +111,7 @@ class RecordingPlaceProvider:
                 business_status="operational",
                 open_now=True,
             ),
-        ]
+        ))
 
 
 class RatingPlaceProvider(RecordingPlaceProvider):
@@ -124,9 +125,10 @@ class RatingPlaceProvider(RecordingPlaceProvider):
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.searches.append({"filters": filters, "sort": sort})
-        return [
+        return PlaceSearchPage(places=(
             Place(
                 provider="google",
                 provider_place_id="rated-3-5",
@@ -160,7 +162,7 @@ class RatingPlaceProvider(RecordingPlaceProvider):
                 business_status="operational",
                 rating=None,
             ),
-        ]
+        ))
 
 
 class ServicePlaceProvider(RecordingPlaceProvider):
@@ -174,9 +176,10 @@ class ServicePlaceProvider(RecordingPlaceProvider):
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.searches.append({"filters": filters, "sort": sort})
-        return [
+        return PlaceSearchPage(places=(
             Place(
                 provider="google",
                 provider_place_id="both",
@@ -213,7 +216,7 @@ class ServicePlaceProvider(RecordingPlaceProvider):
                 dine_in=None,
                 takeout=None,
             ),
-        ]
+        ))
 
 
 @pytest.mark.anyio
@@ -380,8 +383,12 @@ async def test_exact_greater_than_rating_excludes_an_equal_rating() -> None:
     )
     original_search = provider.search_nearby
 
-    async def search_with_4_9(**kwargs: object) -> Sequence[Place]:
-        return [*(await original_search(**kwargs)), provider_rating]
+    async def search_with_4_9(**kwargs: object) -> PlaceSearchPage:
+        page = await original_search(**kwargs)
+        return PlaceSearchPage(
+            places=(*page.places, provider_rating),
+            continuation_token=page.continuation_token,
+        )
 
     provider.search_nearby = search_with_4_9  # type: ignore[method-assign]
 
@@ -455,7 +462,8 @@ class AvailabilityPlaceProvider(RecordingPlaceProvider):
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.searches.append(
             {
                 "descriptive_requirements": descriptive_requirements,
@@ -470,7 +478,7 @@ class AvailabilityPlaceProvider(RecordingPlaceProvider):
             "coordinates": Coordinates(latitude=43.6454, longitude=-79.3805),
             "business_status": "operational",
         }
-        return [
+        return PlaceSearchPage(places=(
             Place(
                 **common,
                 provider_place_id="overlaps",
@@ -507,7 +515,7 @@ class AvailabilityPlaceProvider(RecordingPlaceProvider):
                 name="Hours Missing",
                 opening_periods=None,
             ),
-        ]
+        ))
 
 
 class ConfirmedFilterPlaceProvider(RecordingPlaceProvider):
@@ -521,14 +529,15 @@ class ConfirmedFilterPlaceProvider(RecordingPlaceProvider):
         sort: SearchSort,
         descriptive_requirements: tuple[DescriptiveRequirement, ...] = (),
         availability_window: AvailabilityWindow | None = None,
-    ) -> Sequence[Place]:
+        continuation_token: str | None = None,
+    ) -> PlaceSearchPage:
         self.searches.append(
             {
                 "filters": filters,
                 "descriptive_requirements": descriptive_requirements,
             }
         )
-        return [
+        return PlaceSearchPage(places=(
             Place(
                 provider="google",
                 provider_place_id="confirmed",
@@ -540,8 +549,8 @@ class ConfirmedFilterPlaceProvider(RecordingPlaceProvider):
                 business_status="operational",
                 open_now=True,
                 rating=4.6,
-            )
-        ]
+            ),
+        ))
 
 
 @pytest.mark.anyio

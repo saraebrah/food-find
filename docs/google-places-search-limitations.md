@@ -66,9 +66,9 @@ Reference: [Text Search location restriction](https://developers.google.com/maps
 
 ## 6. Text Search pagination requires additional requests
 
-Text Search returns up to 20 results in one batch. If Google supplies a `nextPageToken`, FoodFind can make another request for the next batch and append its valid results to the same screen. This permits automatic top-up or infinite scrolling without visible numbered website pages.
+Text Search returns up to 20 results in one batch. If Google supplies a `nextPageToken`, FoodFind can request another batch to replace candidates removed by its own filters.
 
-The current MVP intentionally requests only the first batch. Future continuation work will need a request limit and must stop when Google provides no continuation token, the limit is reached, or a request fails. Every additional batch will be another Google API request.
+FoodFind targets 20 valid results, uses Google's available continuation batches, then sorts once and displays one final list without **Load more**. It stops at 20 valid results, no continuation token, Google's current three-batch limit, or a failed continuation request. Every additional batch is another Google API request and adds waiting time.
 
 Pagination also does not guarantee a complete directory. Text Search remains relevance-ranked, and Google may stop providing continuation tokens before every potentially matching business has been exposed.
 
