@@ -14,6 +14,7 @@
 	const callHref = $derived(details.phone_number ? phoneHref(details.phone_number) : null);
 	const safeWebsiteHref = $derived(websiteHref(details.website_uri));
 	const safeWebsiteLabel = $derived(safeWebsiteHref ? websiteLabel(safeWebsiteHref) : null);
+	const safeMenuHref = $derived(websiteHref(details.menu_uri));
 	const callLabel = $derived(businessStatus === null ? 'Call to confirm' : 'Call');
 
 	async function copyPhoneNumber(): Promise<void> {
@@ -169,4 +170,15 @@
 	{/if}
 {:else}
 	<p class="place-missing">Website unavailable</p>
+{/if}
+
+{#if safeMenuHref}
+	<a
+		class="place-action place-menu-link"
+		href={safeMenuHref}
+		target="_blank"
+		rel="noopener noreferrer"
+	>
+		View menu
+	</a>
 {/if}

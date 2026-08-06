@@ -363,6 +363,17 @@ function renderPlaceDetails(container, details, businessStatus) {
   } else {
     addText(container, "p", "place-missing", "Website unavailable");
   }
+
+  const safeMenuHref = websiteHref(details.menu_uri);
+  if (safeMenuHref !== null) {
+    const menuLink = document.createElement("a");
+    menuLink.className = "place-action place-menu-link";
+    menuLink.href = safeMenuHref;
+    menuLink.target = "_blank";
+    menuLink.rel = "noopener noreferrer";
+    menuLink.textContent = "View menu";
+    container.append(menuLink);
+  }
 }
 
 async function requestPlaceDetails(place) {

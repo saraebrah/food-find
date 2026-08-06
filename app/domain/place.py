@@ -82,3 +82,4 @@ class PlaceDetails:
     opening_hours: tuple[str, ...]
     phone_number: str | None
     website_uri: str | None
+    menu_uri: str | None = None

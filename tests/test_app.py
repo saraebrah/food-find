@@ -15,7 +15,12 @@ from app.domain.search_intent import (
     AvailabilityWindow,
     DescriptiveRequirement,
 )
-from app.main import app, get_current_datetime, get_place_provider
+from app.main import (
+    app,
+    get_current_datetime,
+    get_menu_link_resolver,
+    get_place_provider,
+)
 from app.ports.place_provider import PlaceProviderError, PlaceSearchPage
 
 
@@ -115,6 +120,16 @@ class FailingPlaceProvider:
         raise PlaceProviderError("private provider details")
 
 
+class RecordingMenuLinkResolver:
+    def __init__(self, menu_uri: str | None = "https://example.com/menu") -> None:
+        self.menu_uri = menu_uri
+        self.website_uris: list[str] = []
+
+    async def resolve_menu_uri(self, *, website_uri: str) -> str | None:
+        self.website_uris.append(website_uri)
+        return self.menu_uri
+
+
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     with TestClient(app) as test_client:
@@ -187,6 +202,9 @@ def test_search_script_is_served_as_a_static_asset(client: TestClient) -> None:
     assert 'openWebsiteLink.setAttribute("aria-label"' in response.text
     assert 'copyWebsiteButton.setAttribute("aria-label"' in response.text
     assert "await navigator.clipboard.writeText(safeWebsiteHref)" in response.text
+    assert "const safeMenuHref = websiteHref(details.menu_uri)" in response.text
+    assert 'menuLink.textContent = "View menu"' in response.text
+    assert 'menuLink.rel = "noopener noreferrer"' in response.text
     assert 'copyButton.setAttribute("aria-label"' in response.text
     assert "navigator.clipboard?.writeText" in response.text
     assert "await navigator.clipboard.writeText(details.phone_number)" in response.text
@@ -482,7 +500,9 @@ def test_explicit_detail_request_calls_provider_once_and_returns_details(
     client: TestClient,
 ) -> None:
     provider = RecordingPlaceProvider()
+    menu_link_resolver = RecordingMenuLinkResolver()
     app.dependency_overrides[get_place_provider] = lambda: provider
+    app.dependency_overrides[get_menu_link_resolver] = lambda: menu_link_resolver
 
     response = client.post(
         "/api/places/details",
@@ -494,6 +514,7 @@ def test_explicit_detail_request_calls_provider_once_and_returns_details(
     assert provider.call_count == 0
     assert provider.detail_call_count == 1
     assert provider.detail_place_ids == ["google-place-1"]
+    assert menu_link_resolver.website_uris == ["https://example.com/"]
     assert response.json() == {
         "provider": "google",
         "provider_place_id": "google-place-1",
@@ -503,6 +524,7 @@ def test_explicit_detail_request_calls_provider_once_and_returns_details(
         "opening_hours": ["Monday: 9:00 AM – 9:00 PM"],
         "phone_number": "(416) 555-0100",
         "website_uri": "https://example.com/",
+        "menu_uri": "https://example.com/menu",
     }
 
 

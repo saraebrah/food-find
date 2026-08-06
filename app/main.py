@@ -13,6 +13,7 @@ from google import genai
 from app.adapters.gemini_search_interpreter import GeminiSearchInterpreter
 from app.adapters.google_locations import GoogleLocationGateway
 from app.adapters.google_places import GooglePlacesGateway
+from app.adapters.website_menu_links import WebsiteMenuLinkResolver
 from app.api.interpretation_models import (
     InterpretSearchRequest,
     SearchIntentResponse,
@@ -37,6 +38,7 @@ from app.application.search_places import (
 from app.domain.place import PlaceDetails
 from app.domain.search_interpretation import SearchInterpretationContext
 from app.ports.location_provider import LocationProvider, LocationProviderError
+from app.ports.menu_link_resolver import MenuLinkResolver
 from app.ports.place_provider import PlaceProvider, PlaceProviderError
 from app.ports.search_interpreter import (
     SearchInterpreter,
@@ -69,6 +71,12 @@ async def get_location_provider() -> AsyncIterator[LocationProvider]:
             api_key=settings.google_maps_api_key.get_secret_value(),
             http_client=http_client,
         )
+
+
+async def get_menu_link_resolver() -> AsyncIterator[MenuLinkResolver]:
+    timeout = httpx.Timeout(5, connect=3)
+    async with httpx.AsyncClient(timeout=timeout) as http_client:
+        yield WebsiteMenuLinkResolver(http_client=http_client)
 
 
 async def get_search_interpreter() -> AsyncIterator[SearchInterpreter]:
@@ -179,9 +187,16 @@ async def get_place_details(
     details_request: PlaceDetailsRequest,
     response: Response,
     place_provider: Annotated[PlaceProvider, Depends(get_place_provider)],
+    menu_link_resolver: Annotated[
+        MenuLinkResolver,
+        Depends(get_menu_link_resolver),
+    ],
 ) -> PlaceDetails:
     response.headers["Cache-Control"] = "no-store"
-    use_case = GetPlaceDetails(place_provider=place_provider)
+    use_case = GetPlaceDetails(
+        place_provider=place_provider,
+        menu_link_resolver=menu_link_resolver,
+    )
     try:
         return await use_case.execute(
             provider=details_request.provider,

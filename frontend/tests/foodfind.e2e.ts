@@ -54,7 +54,8 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 				open_now: true,
 				opening_hours: ['Monday: 8:00 AM – 6:00 PM'],
 				phone_number: '+1 416-555-0100',
-				website_uri: 'https://example.com/'
+				website_uri: 'https://example.com/',
+				menu_uri: 'https://example.com/menu'
 			})
 		});
 	});
@@ -108,6 +109,10 @@ test('searches explicitly and caches an opened place detail response', async ({ 
 	await expect(page.getByRole('link', { name: 'Open example.com' })).toHaveAttribute(
 		'href',
 		'https://example.com/'
+	);
+	await expect(page.getByRole('link', { name: 'View menu' })).toHaveAttribute(
+		'href',
+		'https://example.com/menu'
 	);
 	expect(detailRequests).toBe(1);
 	expect(detailBodies).toEqual([{ provider: 'google', provider_place_id: 'place-1' }]);

@@ -185,6 +185,11 @@ This phase completes the spatial experience after the result criteria are useful
    - **Distance:** Google can return results in distance order, and FoodFind calculates the exact distance, so adding later results would also be manageable.
    - **Rating:** Google cannot order all Text Search batches by rating. A later batch could contain a higher-rated place than the first 10, so FoodFind would have to rearrange results the user already saw or leave them in the wrong order.
    - FoodFind therefore collects up to 20 valid results first, sorts them once, and displays them together without a **Load more** button.
+8. [x] Add direct restaurant-menu links. Completed 2026-08-05.
+   - After a user explicitly opens details, inspect the restaurant's website for a clearly labelled menu or online-ordering link.
+   - Show **View menu** only when FoodFind finds a safe public link. Do not guess a `/menu` address or show an unavailable placeholder.
+   - Respect the website's robots rules, inspect only its homepage, and do not copy or treat its menu content as verified food evidence.
+   - A blocked, missing, or failed website check must not prevent the Google details from appearing.
 
 This phase improves the complete working flow after the core behavior is established.
 
@@ -204,7 +209,7 @@ This phase improves the complete working flow after the core behavior is establi
 
 ### Verified menu and dish discovery
 
-- Link to menus from restaurant-owned, licensed, or directly submitted sources, with the option to display appropriate menu content inside FoodFind later.
+- The current direct menu link only sends the user to the restaurant's menu. It does not read the menu or confirm that a requested item is available.
 - Process permitted menu data so FoodFind can confirm that a restaurant currently offers a requested dish instead of relying only on Google category or Text Search relevance.
 - Store source, last-checked time, and field-level provenance; do not infer menu availability from cuisine, business name, or an LLM response.
 - Begin with a small Toronto-area experiment before expanding coverage or building menu search at scale.
