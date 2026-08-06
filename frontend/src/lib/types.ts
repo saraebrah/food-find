@@ -134,4 +134,5 @@ export interface PlaceDetails {
 	opening_hours: string[];
 	phone_number: string | null;
 	website_uri: string | null;
+	menu_uri: string | null;
 }

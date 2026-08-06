@@ -313,7 +313,8 @@ Map selection and device current location are available in Phase 5.
 - The default Text Search batch requests only useful fields that keep the request in the Pro tier. An active Enterprise search filter may add only the field it requires.
 - When no Enterprise search filter is active, Enterprise fields are fetched only after the user explicitly opens a result. Enterprise search filters request only their required fields conditionally.
 - Dine-in and takeout are requested only when their corresponding Phase 3 filter is active. They are not displayed as extra result-summary data.
-- Each result has a **View details** control. Opening it requests only that place's rating, rating count, current opening hours and open status, phone, and website.
+- Each result has a **View details** control. Opening it requests only that place's rating, rating count, current opening hours and open status, phone, and website from Google.
+- When Google supplies a usable website, the details flow may separately check that website's robots rules and homepage for an explicit menu or online-ordering link. It makes no additional Google request.
 - A fetched detail response is cached in browser memory while the current result list remains rendered. Closing and reopening the same result does not make another request; changing the search clears the cache and aborts in-flight detail requests.
 - Detail ratings use the concise source-labelled format **Google Maps rating: 4.9 (1,414)**, where the parenthesized value is the rating count. Current open status remains distinct from operational business status, and unavailable detail values are labelled instead of inferred.
 - A detail failure stays within the opened card and offers a retry without removing the search results.
@@ -321,6 +322,8 @@ Map selection and device current location are available in Phase 5.
 - Available phone numbers are callable through `tel:` links. The action reads **Call to confirm** when operational status is unknown and **Call** otherwise.
 - The provider-formatted phone number is always visible and selectable in a compact details row. On hover or keyboard focus, only that row is highlighted and reveals call then copy actions. Successful copying is confirmed; if browser clipboard access is unavailable, the number remains manually copyable.
 - Available `http:` or `https:` websites appear as a compact row showing the readable domain. On hover or keyboard focus, only that row is highlighted and reveals open then copy actions. The domain and open action launch the full safe URL in a new tab, while copy uses that full URL. Other URI schemes are not displayed as links.
+- A discovered safe menu URL appears as **View menu**. It is hidden when the website blocks inspection, has no clear menu link, cannot be reached, or returns an unsafe URL; FoodFind does not guess a menu address or show **Menu unavailable**.
+- Menu discovery inspects only the authoritative homepage and does not copy menu content or treat the link as proof that a requested dish is available.
 - Because touch devices do not have hover, contact actions remain visible there.
 - Every result with a usable destination has a **Get directions** action. It opens a universal Google Maps directions URL using the result coordinates and, for Google results, the Google place ID for more precise matching.
 - The directions origin is the immutable selected-location snapshot submitted with that result search. FoodFind sends its coordinates and, when the location came from Google autocomplete, its Google place ID. It does not force a travel mode.
@@ -342,10 +345,11 @@ Map selection and device current location are available in Phase 5.
 - Loading or reloading the page and rendering search summaries produce zero place-detail requests.
 - The place-detail endpoint and response use `Cache-Control: no-store`, and the API key remains only in the server-to-Google header.
 - Phone links contain only a sanitized dialable value, and unsupported website URI schemes are never assigned to link destinations.
-- Website and Google Maps links that open a new tab use `noopener noreferrer`.
+- Website, menu, and Google Maps links that open a new tab use `noopener noreferrer`.
 - A Google Maps directions URL includes `api=1`, the submitted search origin, an encoded destination, and available Google place IDs for the origin and destination.
-- Rendering, copying, or opening website, phone, or directions actions does not increase the place-provider call count.
-- Automated tests verify field mapping, distance calculation, API output, and missing-field text without calling Google.
+- Rendering, copying, or opening website, menu, phone, or directions actions does not increase the place-provider call count.
+- Menu discovery runs only inside the explicit details request, rejects non-public or unsupported URLs, observes robots rules, limits total waiting time, redirects, and response size, and leaves the rest of the details usable when it cannot find a link.
+- Automated tests verify field mapping, distance calculation, API output, missing-field text, and website menu discovery without calling Google or a restaurant website.
 
 ## Smart-search interpretation
 

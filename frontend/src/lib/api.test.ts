@@ -92,7 +92,8 @@ describe('FoodFind API client', () => {
 					open_now: null,
 					opening_hours: [],
 					phone_number: null,
-					website_uri: null
+					website_uri: null,
+					menu_uri: null
 				}),
 				{ status: 200, headers: { 'Content-Type': 'application/json' } }
 			)

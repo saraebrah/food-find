@@ -974,6 +974,10 @@ button:disabled {
   margin-right: 0.5rem;
 }
 
+.place-menu-link {
+  margin-top: 0.45rem;
+}
+
 .place-contact-action {
   display: grid;
   box-sizing: border-box;

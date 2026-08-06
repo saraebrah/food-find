@@ -189,6 +189,28 @@ Google Maps URLs do not require an API key and do not create another Places API 
 - Google lists dine-in, takeout, delivery, and similar service options in the Enterprise + Atmosphere field group: [Place data fields](https://developers.google.com/maps/documentation/places/web-service/data-fields).
 - Google documents cross-platform directions URLs and confirms that Maps URLs do not require an API key: [Google Maps URLs](https://developers.google.com/maps/documentation/urls/get-started).
 
+## Direct restaurant-menu links
+
+- **Date:** 2026-08-05
+- **Status:** Current approach
+
+### Decision
+
+Google Places supplies the restaurant's authoritative `websiteUri`, but no dedicated menu URL. After an explicit **View details** request returns a usable website, `GetPlaceDetails` asks a separate provider-independent menu-link resolver to inspect it. This adds no Google Places request.
+
+The first website adapter checks the site's `robots.txt`, inspects only the homepage, and accepts only a clearly labelled menu or online-ordering link. It resolves relative links, removes fragments, permits only public `http:` or `https:` destinations, limits redirects and downloaded HTML, and never guesses a `/menu` path.
+
+The details response includes a nullable `menu_uri`. The browser shows **View menu** only when that value is safe. A missing link, blocked inspection, unsafe address, timeout, or website failure leaves `menu_uri` empty without failing the already-retrieved Google details. The browser's existing current-results detail cache also prevents reopening the same details from repeating discovery.
+
+This feature links users to the source website only. FoodFind does not copy or store menu content and does not treat the link as evidence that a requested dish is currently offered. Verified menu ingestion remains separate future work.
+
+### Rationale
+
+- A direct link is useful without claiming that FoodFind understands or verifies the menu.
+- Running discovery only after explicit interest avoids website traffic for every search result.
+- A dedicated port keeps website inspection separate from Google Places and replaceable later.
+- Conservative URL, network, response-size, redirect, total-time, and robots checks reduce risk from fetching third-party websites.
+
 ## Fixed Toronto search lifecycle
 
 - **Date:** 2026-07-11

@@ -58,7 +58,8 @@ describe('PlaceCard', () => {
 			open_now: true,
 			opening_hours: ['Monday: 9:00 AM – 9:00 PM'],
 			phone_number: '(416) 555-0100',
-			website_uri: 'https://example.com/'
+			website_uri: 'https://example.com/',
+			menu_uri: 'https://example.com/menu'
 		});
 	});
 
@@ -146,6 +147,9 @@ describe('PlaceCard', () => {
 		await expect.element(page.getByText('Google Maps rating: 4.6 (321)')).toBeVisible();
 		await expect.element(page.getByRole('link', { name: 'Call' })).toBeVisible();
 		await expect.element(page.getByRole('link', { name: 'example.com', exact: true })).toBeVisible();
+		await expect
+			.element(page.getByRole('link', { name: 'View menu' }))
+			.toHaveAttribute('href', 'https://example.com/menu');
 		expect(getPlaceDetails).toHaveBeenCalledTimes(1);
 
 		await page.getByRole('button', { name: 'Hide details' }).click();
@@ -163,7 +167,8 @@ describe('PlaceCard', () => {
 			open_now: null,
 			opening_hours: [],
 			phone_number: null,
-			website_uri: null
+			website_uri: null,
+			menu_uri: null
 		});
 		render(PlaceCard, { place, origin });
 
@@ -174,6 +179,7 @@ describe('PlaceCard', () => {
 		await expect.element(page.getByText('Hours unavailable')).toBeVisible();
 		await expect.element(page.getByText('Phone unavailable')).toBeVisible();
 		await expect.element(page.getByText('Website unavailable')).toBeVisible();
+		await expect.element(page.getByRole('link', { name: 'View menu' })).not.toBeInTheDocument();
 		await expect.element(page.getByRole('link', { name: /^Call/ })).not.toBeInTheDocument();
 		await expect.element(page.getByRole('link', { name: /^Open / })).not.toBeInTheDocument();
 	});
@@ -223,5 +229,24 @@ describe('PlaceCard', () => {
 		await page.getByRole('button', { name: 'Copy example.com' }).click();
 		expect(copyText).toHaveBeenCalledExactlyOnceWith('https://example.com/');
 		await expect.element(page.getByText('Website link copied')).toBeVisible();
+	});
+
+	it('hides an unsafe discovered menu URI', async () => {
+		vi.mocked(getPlaceDetails).mockResolvedValueOnce({
+			provider: 'google',
+			provider_place_id: 'google-place-1',
+			rating: null,
+			user_rating_count: null,
+			open_now: null,
+			opening_hours: [],
+			phone_number: null,
+			website_uri: 'https://example.com/',
+			menu_uri: 'javascript:alert(1)'
+		});
+		render(PlaceCard, { place, origin });
+
+		await page.getByRole('button', { name: 'View details' }).click();
+
+		await expect.element(page.getByRole('link', { name: 'View menu' })).not.toBeInTheDocument();
 	});
 });
